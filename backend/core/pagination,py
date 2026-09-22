@@ -1,0 +1,18 @@
+from math import ceil
+
+
+def calculate_pages(
+    total: int,
+    page_size: int,
+) -> int:
+    if total == 0:
+        return 0
+
+    return ceil(total / page_size)
+
+
+def calculate_offset(
+    page: int,
+    page_size: int,
+) -> int:
+    return (page - 1) * page_size
