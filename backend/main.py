@@ -35,6 +35,11 @@ from backend.api.routes.system_routes import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from backend.models.organization import Organization
+from backend.models.lead import Lead
+from backend.models.lead_analysis import LeadAnalysis
+from backend.models.ingestion import IngestionJob
+
 
 limiter = Limiter(
     key_func=get_remote_address

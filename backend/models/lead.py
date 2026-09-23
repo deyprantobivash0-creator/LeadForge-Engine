@@ -80,6 +80,13 @@ class Lead(Base):
         index=True,
     )
 
+    processing_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="pending",
+        index=True,
+    )
+
     notes: Mapped[str | None] = mapped_column(
         String(2000),
         nullable=True,
