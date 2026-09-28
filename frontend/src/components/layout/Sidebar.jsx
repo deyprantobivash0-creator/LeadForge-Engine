@@ -1,85 +1,74 @@
-import { NavLink } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Users,
+  BarChart3,
+  Sparkles,
+  Upload,
+  Settings,
+} from "lucide-react";
 
-const navigation = [
-  {
-    label: "Dashboard",
-    path: "/",
-    icon: "◫",
-  },
-  {
-    label: "Leads",
-    path: "/leads",
-    icon: "◎",
-  },
-  {
-    label: "Intelligence",
-    path: "/intelligence",
-    icon: "✦",
-  },
-  {
-    label: "Reports",
-    path: "/reports",
-    icon: "▤",
-  },
-  {
-    label: "Settings",
-    path: "/settings",
-    icon: "⚙",
-  },
-];
+import NavItem from "./NavItem";
+import OrganizationSwitcher from "./OrganizationSwitcher";
+import UserMenu from "./UserMenu";
 
-function Sidebar() {
+export default function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-icon">
-          <span>LF</span>
-        </div>
 
-        <div>
-          <div className="brand-name">LeadForge</div>
-          <div className="brand-version">AI LEAD ENGINE</div>
-        </div>
-      </div>
+      <div>
 
-      <div className="sidebar-section-label">
-        WORKSPACE
-      </div>
-
-      <nav className="sidebar-nav">
-        {navigation.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === "/"}
-            className={({ isActive }) =>
-              `nav-item ${isActive ? "active" : ""}`
-            }
-            title={item.label}
-          >
-            <strong>{item.icon}</strong>
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="sidebar-footer">
-        <div className="system-status">
-          <span className="status-dot" />
+        <div className="logo-area">
+          <div className="logo-circle">
+            ✦
+          </div>
 
           <div>
-            <div className="status-title">
-              System Online
-            </div>
-
-            <div className="status-subtitle">
-              Lead intelligence active
-            </div>
+            <h3>LeadForge</h3>
+            <small>Engine v1.0</small>
           </div>
         </div>
+
+        <OrganizationSwitcher />
+
+        <nav className="sidebar-nav">
+
+          <NavItem
+            icon={<LayoutDashboard size={20} />}
+            label="Dashboard"
+            active
+          />
+
+          <NavItem
+            icon={<Users size={20} />}
+            label="Leads"
+          />
+
+          <NavItem
+            icon={<Sparkles size={20} />}
+            label="AI Intelligence"
+          />
+
+          <NavItem
+            icon={<Upload size={20} />}
+            label="Import"
+          />
+
+          <NavItem
+            icon={<BarChart3 size={20} />}
+            label="Reports"
+          />
+
+          <NavItem
+            icon={<Settings size={20} />}
+            label="Settings"
+          />
+
+        </nav>
+
       </div>
+
+      <UserMenu />
+
     </aside>
   );
 }
-
-export default Sidebar;

@@ -9,10 +9,13 @@ import {
 } from "lucide-react";
 
 import KpiCard from "../components/dashboard/kpicard";
-import PremiumCard from "../components/ui/premiumcard";
+import PremiumCard from "../components/ui/PremiumCard";
 
 import { getDashboardOverview } from "../services/dashboardService";
-function Dashboard() {
+
+import AISection from "../components/ai/AISection";
+
+export default function Dashboard() {
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -133,7 +136,8 @@ function Dashboard() {
   ];
 
   return (
-  <div className="dashboard">
+  
+      <div className="dashboard">
 
       {/* HEADER */}
 
@@ -197,14 +201,14 @@ function Dashboard() {
     title="AI Qualified"
     value={data?.qualified ?? 0}
     icon={<Sparkles />}
-    color="A8C8A2"
+    color="#A8C8A2"
   />
 
   <KpiCard
     title="Converted"
     value={data?.converted ?? 0}
     icon={<CircleDollarSign />}
-    color="F8E8A6"
+    color="#F8E8A6"
   />
 
   <KpiCard
@@ -225,6 +229,7 @@ function Dashboard() {
           <strong>{data?.qualified ?? 0}</strong> qualified opportunities ready for your Sales team.
         </p>
       </div>
+      <AISection/>
       <div
         style={{
           width: 72,
@@ -390,7 +395,7 @@ function Dashboard() {
       
 
     </div>
+  
   );
 }
 
-export default Dashboard;
