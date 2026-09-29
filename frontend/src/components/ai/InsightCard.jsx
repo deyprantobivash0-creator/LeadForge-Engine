@@ -4,7 +4,7 @@ export default function InsightCard() {
   return (
     <PremiumCard>
 
-      <div className="insight-card">
+      <div className="glass">
 
         <h3>AI Recommendations</h3>
 

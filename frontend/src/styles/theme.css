@@ -1,0 +1,40 @@
+/* ==========================================
+   LEADFORGE DESIGN SYSTEM
+========================================== */
+
+:root{
+
+--bg:#050814;
+
+--surface:rgba(17,25,40,.58);
+
+--surface-strong:rgba(20,28,48,.78);
+
+--glass:rgba(255,255,255,.08);
+
+--glass-border:rgba(255,255,255,.10);
+
+--purple:#8B7DFF;
+
+--purple-soft:#B6A7FF;
+
+--blue:#6BCBFF;
+
+--sage:#8FD3A6;
+
+--yellow:#FFD670;
+
+--text:#F8FAFC;
+
+--text-secondary:#AAB8D4;
+
+--radius-xl:32px;
+
+--radius-lg:24px;
+
+--radius-md:18px;
+
+--shadow:
+0 20px 60px rgba(0,0,0,.35);
+
+}

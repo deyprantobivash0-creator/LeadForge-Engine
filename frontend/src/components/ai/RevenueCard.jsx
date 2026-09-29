@@ -6,7 +6,7 @@ export default function RevenueCard({
   return (
     <PremiumCard>
 
-      <div className="revenue-card">
+      <div className="glass">
 
         <h3>Revenue Potential</h3>
 

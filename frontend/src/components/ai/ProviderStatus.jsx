@@ -6,7 +6,7 @@ export default function ProviderStatus({
   return (
     <PremiumCard>
 
-      <div className="provider-card">
+      <div className="glass">
 
         <h3>AI Provider</h3>
 

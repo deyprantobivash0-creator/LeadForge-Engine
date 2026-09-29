@@ -4,7 +4,7 @@ export default function TimelineCard() {
   return (
     <PremiumCard>
 
-      <div className="timeline-card">
+      <div className="glass">
 
         <h3>Qualification Timeline</h3>
 

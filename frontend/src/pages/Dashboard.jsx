@@ -141,52 +141,49 @@ export default function Dashboard() {
 
       {/* HEADER */}
 
-      <div className="page-header">
-        <div>
-          <div className="eyebrow">
-            LEAD INTELLIGENCE PLATFORM
-          </div>
-
-          <h1>Overview</h1>
-
-          <p>
-            Your lead intelligence command center.
-          </p>
-        </div>
-
-        <div className="dashboard-status">
-          <span className="status-dot"></span>
-
-          <div>
-            <span>LIVE DATA</span>
-            <strong>Operational</strong>
-          </div>
-        </div>
-      </div>
-
+      
       {/* KPI CARDS */}
 
- <div className="dashboard-header">
+ <div className="dashboard-header aurora-header">
   <div className="dashboard-title-section">
-    <h1 className="dashboard-title">Hi, Pranta!</h1>
-    <p className="dashboard-subtitle">
-      Your AI powered command center is Ready.
-    </p>
-  </div>
- </div>
-   <div
-     style={{
-      padding: "14px 22px",
-       borderRadius: "18px",
-       background: "Linear-gradient(135deg, #7C6CF8, #B7D8F8)",
-      color:"#fff",
-      fontweight:600
-     }}
-   >
+    
+
+          
+
+          <div className="welcome-banner">
+
+           <div>
+
+            <h2>Hi, Pranta! 👋</h2>
+
+            <p>
+
+            Your AI-powered command center is ready.
+
+            </p>
+
+            </div>
+
+            <div className="welcome-pill">
+
+            LIVE
+
+           </div>
+
+            </div>
+        
+
+    
+       <div
+     
+       >
      <p>
       LeadForge v1.0.1
      </p>
    </div>
+
+      </div>
+     </div>
 
 
  <div className="kpi-grid">
