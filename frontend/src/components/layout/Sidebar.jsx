@@ -3,16 +3,16 @@ import {
   Users,
   BarChart3,
   Sparkles,
-  Upload,
   Settings,
+  Upload,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import NavItem from "./NavItem";
-import OrganizationSwitcher from "./OrganizationSwitcher";
+import OrganizationSwitcher from "./organizationSwitcher";
 import UserMenu from "./UserMenu";
 
-export default function Sidebar({ page, setPage }) {
+export default function Sidebar() {
    const navigate = useNavigate();
    const location = useLocation();
 
@@ -22,24 +22,24 @@ export default function Sidebar({ page, setPage }) {
       <div>
 
         <div className="logo-area">
-          <div className="logo-circle">
+          <div className="logo-circle glow-purple">
             ✦
           </div>
 
           <div>
             <h3>LeadForge</h3>
-            <small>Engine v1.0</small>
+            <small>Revenue intelligence</small>
           </div>
         </div>
 
         <OrganizationSwitcher />
 
-          <nav className="sidebar-nav">
+          <nav className="sidebar-nav" aria-label="Main navigation">
 
              <NavItem
               icon={<LayoutDashboard size={20}/>}
               label="Dashboard"
-             active={location.pathname === "/dashboard"}
+             active={location.pathname === "/"}
              onClick={() => navigate("/")}
             />
 
@@ -51,17 +51,17 @@ export default function Sidebar({ page, setPage }) {
             />
 
             <NavItem
-             icon={<Sparkles size={20}/>}
-             label="AI Intelligence"
-             active={location.pathname === "/ai"}
-             onClick={() => navigate("/ai")}
-            />
-
-            <NavItem
               icon={<Upload size={20}/>}
               label="Import"
               active={location.pathname === "/imports"}
               onClick={() => navigate("/imports")}
+            />
+
+            <NavItem
+             icon={<Sparkles size={20}/>}
+             label="AI Intelligence"
+             active={location.pathname === "/ai" || location.pathname.startsWith("/ai/")}
+             onClick={() => navigate("/ai")}
             />
 
             <NavItem

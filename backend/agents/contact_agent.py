@@ -9,11 +9,11 @@ class ContactAgent:
     def __init__(self):
         self.ai = AIOrchestrator()
 
-    def analyze(self, email: str):
+    async def analyze(self, contact):
 
-        prompt = build_contact_prompt(email)
+        prompt = build_contact_prompt(contact)
 
-        response = self.ai.generate(prompt)
+        response = await self.ai.generate(prompt)
 
         cleaned = response.strip()
 

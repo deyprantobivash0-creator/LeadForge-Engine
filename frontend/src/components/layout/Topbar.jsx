@@ -1,45 +1,9 @@
-import { Search, Bell } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 export default function TopBar() {
- return (
-
-<header className="topbar glass">
-
-<div className="topbar-left">
-
-<div className="search-box">
-
-<Search size={18}/>
-
-<input
-
-placeholder="Search leads, companies, contacts..."
-
-type="text"
-
-/>
-
-</div>
-
-</div>
-
-<div className="topbar-right">
-
-<button className="icon-button">
-
-<Bell size={20}/>
-
-</button>
-
-<button className="avatar-button">
-
-P
-
-</button>
-
-</div>
-
-</header>
-
-);
+  const { user, organization } = useAuth();
+  return <header className="topbar">
+    <div className="topbar-left"><span className="topbar-label">WORKSPACE</span><strong>{organization?.name}</strong></div>
+    <div className="topbar-right"><span className="topbar-user">{user?.email}</span></div>
+  </header>;
 }

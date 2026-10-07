@@ -13,12 +13,8 @@ async def leadforge_exception_handler(
     request: Request,
     exc: LeadForgeException,
 ):
-    logger.warning(
-        "Application error | method=%s path=%s code=%s",
-        request.method,
-        request.url.path,
-        exc.error_code,
-    )
+    from backend.core.logger import event
+    event("http.domain.rejected", level=logging.WARNING, reason=exc.error_code, status_code=exc.status_code)
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -36,11 +32,18 @@ async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ):
-    logger.warning(
-        "Validation error | method=%s path=%s",
-        request.method,
-        request.url.path,
-    )
+    from backend.core.logger import event
+    event("http.validation.rejected", level=logging.WARNING, status_code=422)
+
+    # Validator context can contain exception objects that are not JSON-safe.
+    details = [{key: value for key, value in error.items() if key != "ctx"}
+               for error in exc.errors()]
+    if request.url.path == "/api/auth/login":
+        # Validation details must not echo a submitted password or request body.
+        details = [
+            {key: value for key, value in error.items() if key not in {"input", "ctx"}}
+            for error in details
+        ]
 
     return JSONResponse(
         status_code=422,
@@ -49,7 +52,7 @@ async def validation_exception_handler(
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed.",
-                "details": exc.errors(),
+                "details": details,
             },
         },
     )
@@ -59,11 +62,8 @@ async def generic_exception_handler(
     request: Request,
     exc: Exception,
 ):
-    logger.exception(
-        "Unhandled exception | method=%s path=%s",
-        request.method,
-        request.url.path,
-    )
+    from backend.core.logger import event
+    event("http.exception", level=logging.ERROR, exc=exc)
 
     return JSONResponse(
         status_code=500,

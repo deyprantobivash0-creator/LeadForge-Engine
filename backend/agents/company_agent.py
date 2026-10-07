@@ -9,11 +9,11 @@ class CompanyAgent:
     def __init__(self):
         self.ai = AIOrchestrator()
 
-    def analyze(self, company: str):
+    async def analyze(self, company: str):
 
         prompt = build_company_prompt(company)
 
-        response = self.ai.generate(prompt)
+        response = await self.ai.generate(prompt)
 
         cleaned = response.strip()
 

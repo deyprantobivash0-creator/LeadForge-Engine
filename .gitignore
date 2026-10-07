@@ -14,14 +14,20 @@ __pycache__/
 *.so
 
 .venv/
+.venv-ci/
+.ci-tools/
 venv/
 ENV/
 env/
 
 .pytest_cache/
+.leadforge-pytest-*/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage/
+coverage.xml
 htmlcov/
 
 # =========================
@@ -30,6 +36,10 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+*.db-*
+*.sqlite-*
+*.sqlite3-*
+*.bak
 
 # =========================
 # Logs
@@ -69,3 +79,15 @@ build/
 uploads/
 storage/
 backups/
+.staging-artifacts/
+*.dump
+*.dump.sha256
+*.dump.json
+*.backup
+# Local secret mounts and private keys (examples belong in documentation).
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx

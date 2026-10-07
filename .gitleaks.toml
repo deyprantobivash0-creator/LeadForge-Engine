@@ -1,0 +1,13 @@
+title = "LeadForge reviewed secret detection policy"
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "5E reviewed AUTH Alembic revision constant; exact value and file only"
+paths = ['''(?:^|/)tests/test_auth_migration\.py$''']
+regexTarget = "secret"
+regexes = ['''^c3b2a1d0e9f8$''']
+condition = "AND"

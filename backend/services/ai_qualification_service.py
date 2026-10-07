@@ -9,11 +9,11 @@ class AIQualificationService:
     def __init__(self):
         self.ai = AIOrchestrator()
 
-    def qualify(self, company: str, email: str):
+    async def qualify(self, company: str, email: str):
 
         prompt = build_prompt(company, email)
 
-        response = self.ai.generate(prompt)
+        response = await self.ai.generate(prompt)
 
         cleaned = response.strip()
 

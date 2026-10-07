@@ -9,11 +9,11 @@ class IntentAgent:
     def __init__(self):
         self.ai = AIOrchestrator()
 
-    def analyze(self, company: str, email: str):
+    async def analyze(self, company: str, email: str):
 
         prompt = build_intent_prompt(company, email)
 
-        response = self.ai.generate(prompt)
+        response = await self.ai.generate(prompt)
 
         cleaned = response.strip()
 

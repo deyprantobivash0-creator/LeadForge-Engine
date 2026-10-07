@@ -1,34 +1,24 @@
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+"""Apply headers even to errors; API responses must never enter shared caches."""
+from starlette.datastructures import MutableHeaders
 
 
-class SecurityHeadersMiddleware(
-    BaseHTTPMiddleware
-):
-    async def dispatch(
-        self,
-        request: Request,
-        call_next,
-    ):
-        response = await call_next(request)
+class SecurityHeadersMiddleware:
+    def __init__(self, app):
+        self.app = app
 
-        response.headers[
-            "X-Content-Type-Options"
-        ] = "nosniff"
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
 
-        response.headers[
-            "X-Frame-Options"
-        ] = "DENY"
+        async def secured(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["X-Frame-Options"] = "DENY"
+                headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+                headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+                if scope["path"].startswith("/api/"):
+                    headers["Cache-Control"] = "no-store"
+            await send(message)
 
-        response.headers[
-            "Referrer-Policy"
-        ] = "strict-origin-when-cross-origin"
-
-        response.headers[
-            "Permissions-Policy"
-        ] = (
-            "camera=(), microphone=(), "
-            "geolocation=()"
-        )
-
-        return response
+        await self.app(scope, receive, secured)

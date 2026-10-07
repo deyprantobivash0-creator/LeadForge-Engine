@@ -7,6 +7,8 @@ export default function NavItem({
   return (
     <button
       onClick={onClick}
+      type="button"
+      aria-current={active ? "page" : undefined}
       className={`nav-item ${active ? "active" : ""}`}
     >
       <span className="nav-icon">{icon}</span>

@@ -1,0 +1,18 @@
+# Combine with compose.runtime.yml; unique tags preserve local baseline images.
+services:
+  postgres:
+    image: ${LEADFORGE_CI_IMAGE_NAMESPACE:?CI namespace required}:postgres
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U leadforge_dev -d leadforge_dev"]
+  migrate:
+    image: ${LEADFORGE_CI_IMAGE_NAMESPACE:?CI namespace required}:backend
+    environment:
+      LEADFORGE_CI: "1"
+  backend:
+    image: ${LEADFORGE_CI_IMAGE_NAMESPACE:?CI namespace required}:backend
+    environment:
+      LEADFORGE_CI: "1"
+  frontend:
+    image: ${LEADFORGE_CI_IMAGE_NAMESPACE:?CI namespace required}:frontend
+    # Smoke requests run inside the private stack. Preserve the local :8080 app.
+    ports: !reset []

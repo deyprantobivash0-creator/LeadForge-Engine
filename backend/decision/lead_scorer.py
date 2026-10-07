@@ -1,75 +1,27 @@
+"""Application-owned Lead Brain qualification policy."""
+
+from decimal import Decimal, ROUND_HALF_UP
+
+from backend.schemas.lead_contract import LeadPriority
+
+
 class LeadScorer:
+    WEIGHTS = (40, 25, 35)
 
-    def score(
-        self,
-        company_analysis: dict,
-        contact_analysis: dict,
-        intent_analysis: dict,
-    ):
-
-        score = 0
-        reasons = []
-
-        # -----------------------------
-        # Company Score (40 points)
-        # -----------------------------
-        company_size = company_analysis.get("company_size", "").lower()
-
-        if "enterprise" in company_size:
-            score += 40
-            reasons.append("Enterprise company")
-
-        elif "mid" in company_size:
-            score += 25
-            reasons.append("Mid-sized company")
-
-        else:
-            score += 15
-            reasons.append("Small company")
-
-        # -----------------------------
-        # Contact Score (25 points)
-        # -----------------------------
-        email_quality = contact_analysis.get("email_quality", 0)
-
-        score += round(email_quality * 0.25)
-
-        if email_quality >= 70:
-            reasons.append("High-quality business contact")
-
-        # -----------------------------
-        # Intent Score (35 points)
-        # -----------------------------
-        buying_intent = intent_analysis.get("buying_intent", 0)
-
-        score += round(buying_intent * 0.35)
-
-        if buying_intent >= 70:
-            reasons.append("Strong buying intent")
-
-        # -----------------------------
-        # Cap Score
-        # -----------------------------
-        score = min(score, 100)
-
-        # -----------------------------
-        # Priority
-        # -----------------------------
+    @staticmethod
+    def priority_for_score(score: int) -> LeadPriority:
+        if type(score) is not int or not 0 <= score <= 100:
+            raise ValueError("Lead score must be an integer from 0 to 100")
         if score >= 80:
-            priority = "Hot"
-            action = "Schedule Discovery Call"
+            return LeadPriority.HOT
+        if score >= 60:
+            return LeadPriority.WARM
+        return LeadPriority.COLD
 
-        elif score >= 60:
-            priority = "Warm"
-            action = "Start Email Sequence"
-
-        else:
-            priority = "Cold"
-            action = "Research Further"
-
-        return {
-            "lead_score": score,
-            "priority": priority,
-            "recommended_action": action,
-            "reasoning": reasons,
-        }
+    def score_components(self, company: int, contact: int, intent: int) -> tuple[int, LeadPriority]:
+        components = (company, contact, intent)
+        if any(type(value) is not int or not 0 <= value <= 100 for value in components):
+            raise ValueError("Component scores must be integers from 0 to 100")
+        weighted = sum(Decimal(value * weight) for value, weight in zip(components, self.WEIGHTS)) / Decimal(100)
+        score = int(weighted.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        return score, self.priority_for_score(score)

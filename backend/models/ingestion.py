@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.base import Base
 
@@ -21,14 +21,16 @@ class IngestionJob(Base):
         index=True,
     )
 
-    source_type: Mapped[str] = mapped_column(
-        String(50),
+    organization = relationship("Organization", backref="ingestion_jobs")
+
+    filename: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
     )
 
-    filename: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
+    source_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
     )
 
     status: Mapped[str] = mapped_column(
@@ -44,13 +46,13 @@ class IngestionJob(Base):
         default=0,
     )
 
-    successful_rows: Mapped[int] = mapped_column(
+    processed_rows: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
     )
 
-    duplicate_rows: Mapped[int] = mapped_column(
+    successful_rows: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
@@ -62,10 +64,20 @@ class IngestionJob(Base):
         default=0,
     )
 
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
         nullable=False,
+    )
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
     )
 
     completed_at: Mapped[datetime | None] = mapped_column(

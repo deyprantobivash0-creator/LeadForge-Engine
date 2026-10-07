@@ -3,18 +3,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from backend.repositories.lead_repository import LeadRepository
+from backend.schemas.lead_contract import LeadLifecycle
 
 
 class LeadLifecycleService:
 
-    ALLOWED_STATUSES = {
-        "New",
-        "Qualified",
-        "Contacted",
-        "Meeting",
-        "Won",
-        "Lost",
-    }
+    ALLOWED_STATUSES = {item.value for item in LeadLifecycle}
 
     def __init__(self, db: Session):
         self.repository = LeadRepository(db)

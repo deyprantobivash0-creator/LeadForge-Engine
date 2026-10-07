@@ -12,7 +12,7 @@ color="#7C6CF8"
 return(
 
 <PremiumCard>
-<div className="kpi-content">
+<div className=" ,glass-card kpi-card">
 
 <div>
 

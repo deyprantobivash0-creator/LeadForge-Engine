@@ -41,11 +41,21 @@ class LeadService:
         organization_id: int,
         page: int = 1,
         page_size: int = 50,
+        status: str | None = None,
+        priority: str | None = None,
+        processing_status: str | None = None,
+        source: str | None = None,
+        analysis_state: str | None = None,
     ):
         return self.repository.get_all_leads(
             organization_id=organization_id,
             page=page,
             page_size=page_size,
+            status=status,
+            priority=priority,
+            processing_status=processing_status,
+            source=source,
+            analysis_state=analysis_state,
         )
 
     def get_lead(
@@ -65,6 +75,11 @@ class LeadService:
         email: str | None = None,
         page: int = 1,
         page_size: int = 50,
+        status: str | None = None,
+        priority: str | None = None,
+        processing_status: str | None = None,
+        source: str | None = None,
+        analysis_state: str | None = None,
     ):
         return self.repository.search_leads(
             organization_id=organization_id,
@@ -72,6 +87,11 @@ class LeadService:
             email=email,
             page=page,
             page_size=page_size,
+            status=status,
+            priority=priority,
+            processing_status=processing_status,
+            source=source,
+            analysis_state=analysis_state,
         )
 
     def get_follow_up_leads(

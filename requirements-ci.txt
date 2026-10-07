@@ -1,0 +1,4 @@
+# Verification tools only; not installed in application images.
+pip==26.2.1
+pip-audit==2.9.0
+PyYAML==6.0.2

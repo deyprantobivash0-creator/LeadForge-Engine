@@ -27,9 +27,9 @@ class LeadIntelligenceService:
         if not lead:
             return None
 
-        analysis = self.analysis_repository.get_by_lead_email(
+        analysis = self.analysis_repository.get_current_for_lead(
             self.db,
-            lead.email,
+            lead.id,
             organization_id=organization_id,
         )
 
@@ -41,6 +41,7 @@ class LeadIntelligenceService:
             "analysis": (
                 {
                     "id": analysis.id,
+                    "lead_id": analysis.lead_id,
                     "priority": analysis.priority,
                     "lead_score": analysis.lead_score,
                     "result": analysis.result,

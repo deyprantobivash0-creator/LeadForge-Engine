@@ -1,0 +1,272 @@
+status,path,category,decision,reason
+??,.dockerignore,E,INCLUDE,Build/deployment/CI/configuration input
+ M,.env.example,E,INCLUDE,Build/deployment/CI/configuration input
+??,.github/workflows/quality.yml,E,INCLUDE,Build/deployment/CI/configuration input
+ M,.gitignore,E,INCLUDE,Build/deployment/CI/configuration input
+??,.gitleaks.toml,E,INCLUDE,Build/deployment/CI/configuration input
+??,AGENTS.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,Dockerfile,E,INCLUDE,Build/deployment/CI/configuration input
+ M,README.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,alembic.ini,E,INCLUDE,Build/deployment/CI/configuration input
+ M,alembic/env.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,alembic/versions/24b5b28b09b7_sync_processing_status.py,C,INCLUDE,Application migration revision
+??,alembic/versions/c3b2a1d0e9f8_add_auth_foundation.py,C,INCLUDE,Application migration revision
+??,alembic/versions/d4c3b2a1e0f9_link_lead_analysis.py,C,INCLUDE,Application migration revision
+??,alembic/versions/e5d4c3b2a1f0_processing_claim.py,C,INCLUDE,Application migration revision
+ M,backend/agents/company_agent.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/agents/contact_agent.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/agents/intent_agent.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/gemini_client.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/orchestrator.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/providers/base.py,A,INCLUDE,Application/retained legacy source or asset
+ D,backend/ai/providers/base_provider.py,A,INCLUDE,Reviewed deletion of replaced provider interface; no remaining base_provider references
+ M,backend/ai/providers/deepseek_provider.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/providers/gemini_provider.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/providers/mock_provider.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/providers/ollama_provider.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/ai/providers/router.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/schemas/company.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/schemas/contact.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/schemas/intent.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/schemas/lead_brain.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/ai/workflow/lead_brain_workflow.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/dependencies/__init__.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/dependencies/auth.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/dependencies/organization.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/routes/auth_routes.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/api/routes/dashboard_routes.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/routes/import_routes.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/api/routes/lead_routes.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/routes/organization_routes.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/api/routes/report_routes.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/api/routes/settings_routes.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/api/routes/system_routes.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/config.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/csv_security.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/error_handlers.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/logger.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/passwords.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/rate_limit.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/redaction.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/request_id.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/request_logging.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/request_security.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/core/security_headers.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/core/session_tokens.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/dashboard/dashboard_service.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/database/session.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/decision/lead_scorer.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/main.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/models/__init__.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/models/auth_session.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/models/ingestion.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/models/lead.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/models/lead_analysis.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/models/organization_membership.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/models/user.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/reports/report_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/auth_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/dashboard_repository.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/repositories/lead_analysis_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/lead_import_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/lead_processing_repository.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/repositories/lead_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/organization_membership_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/report_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/repositories/runtime_readiness_repository.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/schemas/auth_schema.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/schemas/dashboard_schema.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/schemas/import_schema.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/schemas/lead_contract.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/schemas/lead_lifecycle_schema.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/schemas/lead_schema.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/schemas/report_v2_schema.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/schemas/settings_schema.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/services/ai_qualification_service.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/services/analysis_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/authentication_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/lead_import_service.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/services/lead_intelligence_service.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/services/lead_lifecycle_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/lead_processing_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/lead_scoring_service.py,A,INCLUDE,Application/retained legacy source or asset
+ M,backend/services/lead_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/organization_authorization_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/report_v2_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/runtime_readiness_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,backend/services/settings_service.py,A,INCLUDE,Application/retained legacy source or asset
+??,compose.runtime.yml,E,INCLUDE,Build/deployment/CI/configuration input
+??,compose.staging.yml,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/compose.ci.yml,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/compose.env,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/nginx.conf,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/patch-npm.mjs,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/postgres.Dockerfile,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/security-headers.conf,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/staging/db_roles.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/staging/run_backend.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,deploy/staging/seed.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,docker-compose.yml,E,INCLUDE,Build/deployment/CI/configuration input
+??,docs/AI_ARCHITECTURE.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/API_CONTRACTS.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/ARCHITECTURE.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/BACKUP_RECOVERY.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/CI.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/CONFIGURATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/CONTAINERS.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/DATABASE.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/DEVELOPMENT.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/OBSERVABILITY.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/PRODUCTION_ROADMAP.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/PROJECT_ROADMAP.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/RELEASE_PREP.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/RELEASE_SCOPE.csv,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/SECURITY.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STAGING.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5C_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5D_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5E_IMAGE_FINDINGS.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5E_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5F_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5G_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5H_A_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,docs/STEP_5H_VERIFICATION.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,frontend/.gitignore,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/.oxlintrc.json,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/Dockerfile,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/README.md,D,INCLUDE,Engineering policy/runbook/verification documentation
+??,frontend/index.html,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/package-lock.json,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/package.json,E,INCLUDE,Build/deployment/CI/configuration input
+??,frontend/public/favicon.svg,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/public/icons.svg,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/App.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/App.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/assets/hero.png,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/assets/react.svg,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/assets/vite.svg,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/ai/AISection.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/dashboard/kpiCard.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/components/intelligence/EvidenceCard.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/components/intelligence/IntelligenceMetric.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/components/intelligence/OpportunityScore.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/components/intelligence/RecommendationCard.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/layout/NavItem.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/layout/Sidebar.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/layout/Topbar.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/layout/UserMenu.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/layout/organizationSwitcher.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/components/leads/AddLeadDialog.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/components/leads/LeadDetails.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/context/AuthContext.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/hooks/useApi.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/index.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/main.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Dashboard.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Imports.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Intelligence.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Leads.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/pages/Login.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Reports.jsx,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/pages/Settings.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/pages/WorkspaceSelection.jsx,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/api.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/dashboardService.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/importService.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/leadService.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/reportService.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/services/settingsService.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/dashboard-executive.css,A,INCLUDE,Application/retained legacy source or asset
+ M,frontend/src/styles/global.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/import-center.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/leadforge.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/leads-workspace.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/reports-workspace.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/settings-workspace.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/styles/tokens.css,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/utils/constants.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/utils/formatters.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/src/utils/leadIntelligence.js,A,INCLUDE,Application/retained legacy source or asset
+??,frontend/vite.config.js,E,INCLUDE,Build/deployment/CI/configuration input
+??,package-lock.json,F,EXCLUDE,Legacy root-only Node setup; frontend has canonical complete manifest/lock; preserved locally
+??,package.json,F,EXCLUDE,Legacy root-only Node setup; frontend has canonical complete manifest/lock; preserved locally
+??,pytest.ini,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,requirements-ci.txt,E,INCLUDE,Build/deployment/CI/configuration input
+??,requirements-dev.txt,E,INCLUDE,Build/deployment/CI/configuration input
+ M,requirements.txt,E,INCLUDE,Build/deployment/CI/configuration input
+??,sample_leads.csv,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,sample_leads_invalid.csv,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,scripts/bootstrap_dev_user.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/ci.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/ci_pytest.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/configuration_audit.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/container_smoke.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/migrate_lead_lifecycle.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/migrate_multitenancy.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/observability_faults.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/observability_smoke.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/postgres_backup.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/security_browser_smoke.mjs,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/security_smoke.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/staging.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/staging_smoke.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/verify_backup_recovery.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,scripts/verify_staging.py,E,INCLUDE,Build/deployment/CI/configuration input
+??,test_ai.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_analysis_repository.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_analysis_repository_reports.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_analysis_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_company_agent.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_contact_agent.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_csv_reader.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_dashboard_api.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_dashboard_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_executive_report.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_ingestion_database.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_ingestion_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_intent_agent.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_langgraph.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_intelligence_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_lifecycle_api.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_lifecycle_model.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_lifecycle_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_management_api.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_repository_detail.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_lead_workflow.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_qualification.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_report_api.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_report_periods.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_report_service.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,test_validator.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_analytics.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_auth.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_dashboard_snapshot.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_imports.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+ M,tests/api/test_lead.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_lead_workspace.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_organizations.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_reports_v2.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_runtime_readiness.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_settings.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/api/test_tenant_leads.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/conftest.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/integration/test_analytics_repository.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/security/test_csv_security.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/security/test_http_security.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/security/test_session_security.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/security/test_tenant_attack_matrix.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_analysis_contract.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_analysis_migration.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_auth_foundation.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_auth_migration.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_backup_safety.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_ci_guards.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_database_config.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_dev_bootstrap.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_lead_brain.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_observability.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_processing_migration.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_production_configuration.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests/test_staging.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests_postgres/conftest.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed
+??,tests_postgres/test_postgres_baseline.py,B,INCLUDE,Isolated tests or retained legacy/synthetic fixtures; root legacy scripts not executed

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -8,59 +8,31 @@ from backend.repositories.lead_analysis_repository import (
 
 
 class ReportService:
-
-    from datetime import datetime, timedelta
-
     def __init__(self, db: Session):
         self.db = db
         self.repository = LeadAnalysisRepository()
 
+    @staticmethod
+    def _now() -> datetime:
+        # LeadAnalysis stores naïve UTC timestamps; convert at this boundary.
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
     def generate_report(
         self,
+        organization_id: int,
         start_date: datetime,
         end_date: datetime,
         period: str,
+        limit: int = 5,
+        priority: str | None = None,
     ) -> dict:
-
-        analyses = self.repository.get_between_dates(
-            self.db,
-            start_date,
-            end_date,
+        summary = self.repository.summary(
+            self.db, organization_id, start_date, end_date,
         )
-
-        total_leads = len(analyses)
-
-        hot_leads = sum(
-            1
-            for analysis in analyses
-            if analysis.priority == "Hot"
+        top_leads = self.repository.top_by_score(
+            self.db, organization_id, limit,
+            priority=priority, start_date=start_date, end_date=end_date,
         )
-
-        warm_leads = sum(
-            1
-            for analysis in analyses
-            if analysis.priority == "Warm"
-        )
-
-        cold_leads = sum(
-            1
-            for analysis in analyses
-            if analysis.priority == "Cold"
-        )
-
-        average_score = round(
-            sum(
-                analysis.lead_score
-                for analysis in analyses
-            ) / total_leads,
-            2,
-        ) if total_leads else 0
-
-        top_leads = sorted(
-            analyses,
-            key=lambda analysis: analysis.lead_score,
-            reverse=True,
-        )[:5]
 
         top_leads_data = [
             {
@@ -77,17 +49,12 @@ class ReportService:
             "period": period,
             "start_date": start_date,
             "end_date": end_date,
-            "total_leads": total_leads,
-            "hot_leads": hot_leads,
-            "warm_leads": warm_leads,
-            "cold_leads": cold_leads,
-            "average_lead_score": average_score,
+            **summary,
             "top_leads": top_leads_data,
         }
 
-    def daily_report(self) -> dict:
-
-        now = datetime.utcnow()
+    def daily_report(self, organization_id: int, limit: int = 5, priority: str | None = None) -> dict:
+        now = self._now()
 
         start_date = datetime(
             now.year,
@@ -98,40 +65,44 @@ class ReportService:
         end_date = start_date + timedelta(days=1)
 
         return self.generate_report(
+            organization_id=organization_id,
             start_date=start_date,
             end_date=end_date,
             period="daily",
+            limit=limit,
+            priority=priority,
         )
 
-    def weekly_report(self) -> dict:
-
-        now = datetime.utcnow()
+    def weekly_report(self, organization_id: int, limit: int = 5, priority: str | None = None) -> dict:
+        now = self._now()
 
         start_date = now - timedelta(days=7)
 
         return self.generate_report(
+            organization_id=organization_id,
             start_date=start_date,
             end_date=now,
             period="weekly",
+            limit=limit,
+            priority=priority,
         )
 
-    def monthly_report(self) -> dict:
-
-        now = datetime.utcnow()
+    def monthly_report(self, organization_id: int, limit: int = 5, priority: str | None = None) -> dict:
+        now = self._now()
 
         start_date = now - timedelta(days=30)
 
         return self.generate_report(
+            organization_id=organization_id,
             start_date=start_date,
             end_date=now,
             period="monthly",
+            limit=limit,
+            priority=priority,
         )
 
-    def executive_summary(
-        self,
-        report: dict,
-    ) -> dict:
-
+    def executive_report(self, organization_id: int) -> dict:
+        report = self.monthly_report(organization_id)
         recommendations = []
 
         if report["hot_leads"] > 0:
@@ -175,4 +146,4 @@ class ReportService:
             },
             "top_leads": report["top_leads"],
             "recommendations": recommendations,
-        } 
+        }

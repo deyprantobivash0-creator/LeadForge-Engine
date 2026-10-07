@@ -1,0 +1,106 @@
+name: leadforge-runtime-local
+
+x-backend-environment: &backend-environment
+  # Local HTTP + mock AI only; this is not production configuration.
+  ENVIRONMENT: development
+  AI_PROVIDER: mock
+  LEADFORGE_RUNTIME_LOCAL: "true"
+  DATABASE_URL: postgresql+psycopg://leadforge_dev:${LEADFORGE_RUNTIME_DB_PASSWORD:?Set LEADFORGE_RUNTIME_DB_PASSWORD in the shell}@postgres:5432/leadforge_dev
+  SESSION_COOKIE_SECURE: "false"
+  CORS_ORIGINS: http://127.0.0.1:8080,http://localhost:8080
+
+x-backend: &backend
+  image: leadforge-backend:5b-local
+  environment: *backend-environment
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [runtime]
+
+services:
+  postgres:
+    image: leadforge-postgres:16.15-local
+    build:
+      context: .
+      dockerfile: deploy/postgres.Dockerfile
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/run/postgresql:size=16m,mode=3775,uid=999,gid=999
+    cap_drop: [ALL]
+    # The official entrypoint initializes/chowns the named volume, then drops UID.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_USER: leadforge_dev
+      POSTGRES_PASSWORD: ${LEADFORGE_RUNTIME_DB_PASSWORD:?Set LEADFORGE_RUNTIME_DB_PASSWORD in the shell}
+      POSTGRES_DB: leadforge_dev
+    volumes:
+      - leadforge_postgres_runtime_local:/var/lib/postgresql/data
+    networks: [runtime]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U leadforge_dev -d leadforge_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    <<: *backend
+    command: [python, -m, alembic, upgrade, head]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=8)"]
+      interval: 10s
+      timeout: 9s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    image: leadforge-frontend:5b-local
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [runtime, edge]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/frontend-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  edge:
+  runtime:
+    internal: true
+
+volumes:
+  leadforge_postgres_runtime_local:

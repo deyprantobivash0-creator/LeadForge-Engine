@@ -1,0 +1,131 @@
+# Separate staging project: reuses the established Dockerfiles and proxy policy.
+# Never combine with compose.runtime.yml or use its development credentials/volume.
+name: leadforge-staging
+
+x-logs: &logs
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+
+x-app: &app
+  image: leadforge-backend:${LEADFORGE_STAGE_RELEASE:?Set fingerprint release}
+  build: {context: ., dockerfile: Dockerfile}
+  command: [python, /staging/run_backend.py]
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [runtime]
+  volumes: [./deploy/staging:/staging:ro]
+  logging: *logs
+
+x-environment: &environment
+  ENVIRONMENT: production
+  LEADFORGE_STAGING: "true"
+  AI_PROVIDER: mock
+  SESSION_COOKIE_SECURE: "true"
+  CORS_ORIGINS: https://${LEADFORGE_STAGE_HOST:?Set canonical hostname}
+  VERSION: ${LEADFORGE_STAGE_RELEASE:?Set fingerprint release}
+  LOG_LEVEL: INFO
+  RATE_LIMIT_ENABLED: "true"
+
+services:
+  postgres:
+    image: leadforge-postgres:${LEADFORGE_STAGE_RELEASE:?Set fingerprint release}
+    build: {context: ., dockerfile: deploy/postgres.Dockerfile}
+    environment:
+      POSTGRES_USER: leadforge_stage_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [admin_password]
+    volumes: [stage_data:/var/lib/postgresql/data]
+    networks: [runtime]
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/run/postgresql:size=16m,mode=3775,uid=999,gid=999
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+    healthcheck:
+      test: [CMD-SHELL, 'PGPASSWORD="$$(cat /run/secrets/admin_password)" psql -h 127.0.0.1 -U leadforge_stage_admin -d postgres -X -q -t -c "SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  provision:
+    <<: *app
+    command: [python, /staging/db_roles.py]
+    environment: {LEADFORGE_STAGE_PROVISION: "true"}
+    secrets: [admin_password, migrator_password, app_password, backup_password]
+    restart: "no"
+    depends_on: {postgres: {condition: service_healthy}}
+
+  migrate:
+    <<: *app
+    environment: {<<: *environment, LEADFORGE_STAGE_ROLE: migrator}
+    secrets: [migrator_password]
+    restart: "no"
+    depends_on: {provision: {condition: service_completed_successfully}}
+
+  backend:
+    <<: *app
+    environment: {<<: *environment, LEADFORGE_STAGE_ROLE: app}
+    secrets: [app_password]
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    healthcheck:
+      # DATABASE_URL is injected by the wrapper before app import.
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=8)"]
+      interval: 10s
+      timeout: 9s
+      retries: 5
+      start_period: 15s
+
+  seed:
+    <<: *app
+    profiles: [qa]
+    command: [python, /staging/seed.py]
+    environment: {<<: *environment, LEADFORGE_STAGE_SEED: synthetic-only}
+    secrets: [app_password, qa_password]
+    restart: "no"
+    depends_on: {backend: {condition: service_healthy}}
+
+  frontend:
+    image: leadforge-frontend:${LEADFORGE_STAGE_RELEASE:?Set fingerprint release}
+    build: {context: ., dockerfile: frontend/Dockerfile}
+    ports: ["80:8080", "443:8443"]
+    secrets: [tls_certificate, tls_private_key]
+    volumes:
+      - ${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/security-headers.conf:/etc/nginx/security-headers.conf:ro
+    networks: [runtime, edge]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+    depends_on: {backend: {condition: service_healthy}}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8081/frontend-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  runtime: {internal: true}
+  edge: {}
+volumes:
+  stage_data: {}
+secrets:
+  admin_password: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/admin_password"}
+  migrator_password: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/migrator_password"}
+  app_password: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/app_password"}
+  backup_password: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/backup_password"}
+  qa_password: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/qa_password"}
+  tls_certificate: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/fullchain.pem"}
+  tls_private_key: {file: "${LEADFORGE_STAGE_PRIVATE_DIR:?Set private directory}/privkey.pem"}

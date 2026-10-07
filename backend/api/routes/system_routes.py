@@ -1,7 +1,6 @@
-from fastapi import APIRouter
-from sqlalchemy import text
+from fastapi import APIRouter, Response
 
-from backend.database.session import SessionLocal
+from backend.services.runtime_readiness_service import RuntimeReadinessService
 
 
 router = APIRouter(
@@ -18,24 +17,8 @@ def health():
 
 
 @router.get("/ready")
-def readiness():
-    db = SessionLocal()
-
-    try:
-        db.execute(text("SELECT 1"))
-
-        return {
-            "success": True,
-            "status": "ready",
-            "database": "ok",
-        }
-
-    except Exception:
-        return {
-            "success": False,
-            "status": "not_ready",
-            "database": "unavailable",
-        }
-
-    finally:
-        db.close()
+def readiness(response: Response):
+    result = RuntimeReadinessService().status()
+    if not result["success"]:
+        response.status_code = 503
+    return result

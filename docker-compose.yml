@@ -1,0 +1,21 @@
+name: leadforge-db-dev
+
+services:
+  postgres:
+    image: postgres:16.15
+    environment:
+      POSTGRES_USER: leadforge_dev
+      POSTGRES_PASSWORD: leadforge_dev_only
+      POSTGRES_DB: leadforge_dev
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - leadforge_postgres_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadforge_dev -d leadforge_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  leadforge_postgres_dev:

@@ -1,17 +1,19 @@
-import { ChevronDown, Building2 } from "lucide-react";
+import { Building2 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 export default function OrganizationSwitcher() {
+  const { organizations, organization, selectOrganization } = useAuth();
   return (
-    <button className="org-switcher">
-      <div className="org-left">
+    <label className="org-switcher">
+      <span className="org-left">
         <Building2 size={18} />
-        <div>
+        <span className="org-copy">
           <small>Workspace</small>
-          <strong>LeadForge Inc.</strong>
-        </div>
-      </div>
-
-      <ChevronDown size={18} />
-    </button>
+          <select aria-label="Workspace" value={organization?.id || ""} onChange={(event) => selectOrganization(event.target.value)}>
+            {organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </span>
+      </span>
+    </label>
   );
 }

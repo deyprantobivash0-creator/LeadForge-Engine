@@ -1,8 +1,8 @@
 import ScoreRing from "./ScoreRing";
 import ProviderStatus from "./ProviderStatus";
 import RevenueCard from "./RevenueCard";
-import TimelineCard from "./TimeLineCard";
-import InsightCard from "./Insightcard";
+import TimelineCard from "./TimelineCard";
+import InsightCard from "./InsightCard";
 
 export default function AISection() {
   return (

@@ -1,20 +1,21 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from backend.schemas.lead_contract import LeadLifecycle
 
 
-LeadStatus = Literal[
-    "New",
-    "Qualified",
-    "Contacted",
-    "Meeting",
-    "Won",
-    "Lost",
-]
+LeadStatus = LeadLifecycle
 
 
 class LeadLifecycleUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("notes")
+    @classmethod
+    def reject_nul(cls, value):
+        if value is not None and "\x00" in value:
+            raise ValueError("Text must not contain NUL bytes")
+        return value
 
     status: LeadStatus | None = None
 

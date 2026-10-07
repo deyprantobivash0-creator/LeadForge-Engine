@@ -81,11 +81,15 @@ class Lead(Base):
     )
 
     processing_status: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="pending",
-        index=True,
-    )
+    String(50),
+    nullable=False,
+    default="pending",
+    server_default="pending",
+    index=True,
+)
+
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    processing_attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(
         String(2000),
@@ -116,6 +120,7 @@ class Lead(Base):
             "email",
             name="uq_leads_organization_email",
         ),
+        UniqueConstraint("organization_id", "id", name="uq_leads_organization_id_id"),
         Index(
             "ix_leads_org_created",
             "organization_id",

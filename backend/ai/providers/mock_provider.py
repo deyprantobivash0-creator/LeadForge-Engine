@@ -1,45 +1,26 @@
-from backend.ai.providers.base_provider import AIProvider
+"""Explicit development/test provider. It never asserts external facts."""
+
+import json
+
+from backend.ai.providers.base import AIProvider, ProviderTimeout, ProviderUnavailable
 
 
 class MockProvider(AIProvider):
+    def __init__(self, mode: str = "success"):
+        self.mode = mode
+        self.calls: list[str] = []
 
-    def generate(self, prompt: str) -> str:
-
-        # Company Agent
-        if "estimated_employees" in prompt:
-            return """
-{
-    "industry":"Technology",
-    "company_size":"Enterprise",
-    "estimated_employees":5000,
-    "market":"Software",
-    "headquarters":"San Francisco",
-    "confidence":98
-}
-"""
-
-        # Contact Agent
-        if "email_quality" in prompt:
-            return """
-{
-    "email_quality":78,
-    "decision_maker_probability":62,
-    "department":"Sales",
-    "contact_type":"Individual",
-    "confidence":91
-}
-"""
-
-        # Intent Agent
-        if "buying_intent" in prompt:
-            return """
-{
-    "buying_intent":74,
-    "urgency":"Medium",
-    "pain_point_probability":69,
-    "recommended_outreach":"Discovery Call",
-    "confidence":88
-}
-"""
-
-        return "{}"
+    async def generate(self, prompt: str) -> str:
+        self.calls.append(prompt)
+        if self.mode == "timeout":
+            raise ProviderTimeout("Mock timeout")
+        if self.mode == "error":
+            raise ProviderUnavailable("Mock provider unavailable")
+        if self.mode == "malformed":
+            return '{"score": "invalid"}'
+        # The score reflects insufficient evidence, not a negative buying signal.
+        return json.dumps({
+            "score": 0,
+            "summary": "Insufficient supplied data for a supported assessment.",
+            "evidence": [],
+        })
