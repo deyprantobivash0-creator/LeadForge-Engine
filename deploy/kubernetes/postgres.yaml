@@ -1,0 +1,192 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "postgres"
+  },
+  "spec": {
+    "serviceName": "postgres",
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app": "postgres"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "postgres"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 999,
+          "runAsGroup": 999,
+          "fsGroup": 999,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "postgres",
+            "image": "leadforge-postgres:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              }
+            },
+            "env": [
+              {
+                "name": "POSTGRES_USER",
+                "value": "leadforge_stage_admin"
+              },
+              {
+                "name": "POSTGRES_DB",
+                "value": "postgres"
+              },
+              {
+                "name": "POSTGRES_PASSWORD_FILE",
+                "value": "/run/secrets/admin_password"
+              },
+              {
+                "name": "POSTGRES_INITDB_ARGS",
+                "value": "--auth-host=scram-sha-256"
+              },
+              {
+                "name": "PGDATA",
+                "value": "/var/lib/postgresql/data/pgdata"
+              }
+            ],
+            "ports": [
+              {
+                "name": "postgres",
+                "containerPort": 5432
+              }
+            ],
+            "volumeMounts": [
+              {
+                "name": "data",
+                "mountPath": "/var/lib/postgresql/data"
+              },
+              {
+                "name": "credentials",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "run",
+                "mountPath": "/var/run/postgresql"
+              }
+            ],
+            "readinessProbe": {
+              "exec": {
+                "command": [
+                  "pg_isready",
+                  "-U",
+                  "leadforge_stage_admin",
+                  "-d",
+                  "postgres"
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 3,
+              "failureThreshold": 6
+            },
+            "livenessProbe": {
+              "exec": {
+                "command": [
+                  "pg_isready",
+                  "-U",
+                  "leadforge_stage_admin",
+                  "-d",
+                  "postgres"
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 3,
+              "failureThreshold": 12
+            },
+            "startupProbe": {
+              "exec": {
+                "command": [
+                  "pg_isready",
+                  "-U",
+                  "leadforge_stage_admin",
+                  "-d",
+                  "postgres"
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 3,
+              "failureThreshold": 60
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "credentials",
+            "secret": {
+              "secretName": "leadforge-credentials",
+              "defaultMode": 288,
+              "items": [
+                {
+                  "key": "admin_password",
+                  "path": "admin_password"
+                }
+              ]
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          },
+          {
+            "name": "run",
+            "emptyDir": {}
+          }
+        ]
+      }
+    },
+    "volumeClaimTemplates": [
+      {
+        "apiVersion": "v1",
+        "kind": "PersistentVolumeClaim",
+        "metadata": {
+          "name": "data"
+        },
+        "spec": {
+          "accessModes": [
+            "ReadWriteOnce"
+          ],
+          "resources": {
+            "requests": {
+              "storage": "2Gi"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "backup-tools",
+    "namespace": "leadforge-local"
+  },
+  "spec": {
+    "automountServiceAccountToken": false,
+    "restartPolicy": "Never",
+    "securityContext": {
+      "runAsNonRoot": true,
+      "runAsUser": 999,
+      "runAsGroup": 999,
+      "fsGroup": 999,
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "containers": [
+      {
+        "name": "tools",
+        "image": "leadforge-postgres:5h-l-local",
+        "imagePullPolicy": "Never",
+        "command": [
+          "sleep",
+          "3600"
+        ],
+        "securityContext": {
+          "allowPrivilegeEscalation": false,
+          "readOnlyRootFilesystem": true,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          }
+        },
+        "resources": {
+          "requests": {
+            "cpu": "50m",
+            "memory": "64Mi"
+          },
+          "limits": {
+            "cpu": "500m",
+            "memory": "256Mi"
+          }
+        },
+        "volumeMounts": [
+          {
+            "name": "credentials",
+            "mountPath": "/run/secrets",
+            "readOnly": true
+          },
+          {
+            "name": "tmp",
+            "mountPath": "/tmp"
+          }
+        ]
+      }
+    ],
+    "volumes": [
+      {
+        "name": "credentials",
+        "secret": {
+          "secretName": "leadforge-credentials",
+          "defaultMode": 288,
+          "items": [
+            {
+              "key": "backup_password",
+              "path": "backup_password"
+            }
+          ]
+        }
+      },
+      {
+        "name": "tmp",
+        "emptyDir": {}
+      }
+    ]
+  }
+}

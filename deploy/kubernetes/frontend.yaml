@@ -1,0 +1,125 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "frontend"
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app": "frontend"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "frontend"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 101,
+          "runAsGroup": 101,
+          "fsGroup": 101,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "frontend",
+            "image": "leadforge-frontend:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "256Mi"
+              }
+            },
+            "ports": [
+              {
+                "containerPort": 8080
+              }
+            ],
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "nginx",
+                "mountPath": "/etc/nginx/nginx.conf",
+                "subPath": "nginx.conf",
+                "readOnly": true
+              },
+              {
+                "name": "nginx",
+                "mountPath": "/etc/nginx/security-headers.conf",
+                "subPath": "security-headers.conf",
+                "readOnly": true
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/frontend-health",
+                "port": 8080,
+                "httpHeaders": [
+                  {
+                    "name": "Host",
+                    "value": "staging.leadforge.test"
+                  }
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/frontend-health",
+                "port": 8080,
+                "httpHeaders": [
+                  {
+                    "name": "Host",
+                    "value": "staging.leadforge.test"
+                  }
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          },
+          {
+            "name": "nginx",
+            "configMap": {
+              "name": "leadforge-nginx"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.staging import hostname
 
 
-def smoke(host, fixture, password, *, context=None):
+def smoke(host, fixture, password, *, context=None, oversized_check=None):
     origin = "https://" + hostname(host)
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), urllib.request.HTTPCookieProcessor(jar))
@@ -108,8 +108,13 @@ def smoke(host, fixture, password, *, context=None):
     request("/api/auth/logout", method="POST", expected=403)
     request("/api/auth/logout", method="POST", headers={"X-CSRF-Token": csrf})
     request("/api/auth/me", expected=401, headers={"Cookie": "leadforge_session=" + raw_session})
-    request("/api/leads/", expected=413, method="POST", data=b"x" * (2 * 1024 * 1024 + 1),
-            headers={**tenant, "X-CSRF-Token": csrf}, parsed=False)
+    if oversized_check is None:
+        request("/api/leads/", expected=413, method="POST", data=b"x" * (2 * 1024 * 1024 + 1),
+                headers={**tenant, "X-CSRF-Token": csrf}, parsed=False)
+    else:
+        # An ingress may close an oversized streaming upload before urllib has
+        # finished sending it. The caller can use a streaming HTTP checker.
+        oversized_check(origin, {**tenant, "X-CSRF-Token": csrf})
     for _ in range(12):
         req = urllib.request.Request(origin + "/api/auth/login", data=json.dumps({"email": fixture[0]["email"], "password": "synthetic-invalid-password"}).encode(),
             headers={"Origin": origin, "Content-Type": "application/json"})

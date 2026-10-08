@@ -1,0 +1,115 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "provision"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 180,
+    "template": {
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "runAsGroup": 10001,
+          "fsGroup": 10001,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "provision",
+            "image": "leadforge-backend:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+              }
+            },
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "leadforge-config"
+                }
+              }
+            ],
+            "env": [
+              {
+                "name": "LEADFORGE_STAGE_ROLE",
+                "value": "app"
+              },
+              {
+                "name": "LEADFORGE_STAGE_PROVISION",
+                "value": "true"
+              }
+            ],
+            "command": [
+              "python",
+              "/staging/db_roles.py"
+            ],
+            "volumeMounts": [
+              {
+                "name": "credentials",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "credentials",
+            "secret": {
+              "secretName": "leadforge-credentials",
+              "defaultMode": 288,
+              "items": [
+                {
+                  "key": "admin_password",
+                  "path": "admin_password"
+                },
+                {
+                  "key": "migrator_password",
+                  "path": "migrator_password"
+                },
+                {
+                  "key": "app_password",
+                  "path": "app_password"
+                },
+                {
+                  "key": "backup_password",
+                  "path": "backup_password"
+                }
+              ]
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+  }
+}

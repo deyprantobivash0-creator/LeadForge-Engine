@@ -1,20 +1,33 @@
 # Staging deployment
 
+> **Current status — October 8, 2026:** Remote Step 5H is **DEFERRED — NO DROPLET CREATED**.
+> Cloud billing/provider deployment was intentionally postponed; this is not a LeadForge
+> application failure. **REAL REMOTE STAGING NOT YET EXECUTED.** Step 5I remains **BLOCKED**
+> by remote Step 5H. Docker Desktop local Step 5H-L is tracked separately in
+> [local Kubernetes verification](STEP_5H_L_VERIFICATION.md). Historical authorization
+> and account-access checkpoints below are preserved; they do not authorize current
+> cloud execution during this local-only rehearsal.
+
 Step 5H is **prepared for deployment authorization**, not remotely complete.
-No provider, VM, cloud account, hostname or DNS authorization has been supplied.
-No paid resources, registry push, Git push or remote changes were made. See
+The user selected DigitalOcean Singapore Basic within USD 25/month; final resource
+creation confirmation, account/SSH access and actual hostname/TLS verification
+remain pending. See [resource plan](STAGING_RESOURCE_PLAN.md).
+Step 5H-B subsequently pushed the approved source and verified remote Quality CI.
+No staging resources, registry push, hostname or DNS changes were made. See
 [verification report](STEP_5H_VERIFICATION.md) for the exact local evidence and
 pending remote checks. Stop after 5H; this is not production deployment.
 
 ## Model and authorization
 
 Use one dedicated Linux VM/VPS with Docker Compose, building the existing images
-on that host from an explicit verified source archive. Provider remains unselected:
-use an existing authorized VM or obtain approval for a specific provider, region,
-size and recurring price first. A provisional starting size is 2 vCPU/4 GiB RAM/
+on that host from an explicit verified source archive. The selected plan is
+DigitalOcean Singapore Basic Regular 2 vCPU/4 GiB/80 GiB at USD 24/month listed.
+Stop for the user-required final confirmation before creating the paid resource. A provisional starting size is 2 vCPU/4 GiB RAM/
 40 GiB disk, subject to image-build and restore-capacity measurement. No price or
-resource purchase is implied. No Kubernetes, Terraform, registry or remote green
-CI pipeline is required. Remote 5F CI remains pending.
+resource purchase is implied. Deployment remains the reviewed single-VM Compose
+procedure. Remote 5F CI now passed for
+`6f8b1f1dbbb919078581e829357d692af18b4091`; this exact commit is the staging
+source identity. See [Step 5H-B](STEP_5H_B_VERIFICATION.md) for provider options.
 
 ```text
 Internet :80 -> canonical-host HTTPS redirect

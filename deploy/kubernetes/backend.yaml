@@ -1,0 +1,219 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "backend"
+  },
+  "spec": {
+    "replicas": 1,
+    "strategy": {
+      "type": "RollingUpdate",
+      "rollingUpdate": {
+        "maxUnavailable": 0,
+        "maxSurge": 1
+      }
+    },
+    "selector": {
+      "matchLabels": {
+        "app": "backend"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "backend"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "runAsGroup": 10001,
+          "fsGroup": 10001,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "backend",
+            "image": "leadforge-backend:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+              }
+            },
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "leadforge-config"
+                }
+              }
+            ],
+            "env": [
+              {
+                "name": "LEADFORGE_STAGE_ROLE",
+                "value": "app"
+              }
+            ],
+            "command": [
+              "python",
+              "/staging/run_backend.py"
+            ],
+            "volumeMounts": [
+              {
+                "name": "credentials",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ],
+            "ports": [
+              {
+                "containerPort": 8000
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/ready",
+                "port": 8000,
+                "httpHeaders": [
+                  {
+                    "name": "Host",
+                    "value": "staging.leadforge.test"
+                  }
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "httpHeaders": [
+                  {
+                    "name": "Host",
+                    "value": "staging.leadforge.test"
+                  }
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            },
+            "startupProbe": {
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "httpHeaders": [
+                  {
+                    "name": "Host",
+                    "value": "staging.leadforge.test"
+                  }
+                ]
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 60
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "credentials",
+            "secret": {
+              "secretName": "leadforge-credentials",
+              "defaultMode": 288,
+              "items": [
+                {
+                  "key": "app_password",
+                  "path": "app_password"
+                }
+              ]
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "terminationGracePeriodSeconds": 40,
+        "initContainers": [
+          {
+            "name": "schema-gate",
+            "image": "leadforge-backend:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+              }
+            },
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "leadforge-config"
+                }
+              }
+            ],
+            "env": [
+              {
+                "name": "LEADFORGE_STAGE_ROLE",
+                "value": "app"
+              }
+            ],
+            "command": [
+              "python",
+              "/kubernetes/check_schema.py"
+            ],
+            "volumeMounts": [
+              {
+                "name": "credentials",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "local-ingress"
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app": "local-ingress"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "local-ingress"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": true,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 65532,
+          "runAsGroup": 65532,
+          "fsGroup": 65532,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "ingress",
+            "image": "leadforge-ingress:5h-l-local",
+            "imagePullPolicy": "Never",
+            "args": [
+              "--entrypoints.websecure.address=:8443",
+              "--entrypoints.health.address=:9000",
+              "--ping=true",
+              "--ping.entrypoint=health",
+              "--providers.kubernetesingress=true",
+              "--providers.kubernetesingress.namespaces=leadforge-local",
+              "--providers.kubernetesingress.ingressclass=leadforge-local",
+              "--providers.kubernetesingress.disableclusterscoperesources=true",
+              "--api.dashboard=false",
+              "--log.level=ERROR"
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "256Mi"
+              }
+            },
+            "ports": [
+              {
+                "containerPort": 8443
+              },
+              {
+                "containerPort": 9000
+              }
+            ],
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/ping",
+                "port": 9000
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/ping",
+                "port": 9000
+              },
+              "periodSeconds": 5,
+              "timeoutSeconds": 4,
+              "failureThreshold": 6
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "serviceAccountName": "local-ingress"
+      }
+    }
+  }
+}

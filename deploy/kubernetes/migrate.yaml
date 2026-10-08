@@ -1,0 +1,99 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "migrate"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 180,
+    "template": {
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 10001,
+          "runAsGroup": 10001,
+          "fsGroup": 10001,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "migrate",
+            "image": "leadforge-backend:5h-l-local",
+            "imagePullPolicy": "Never",
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "cpu": "1",
+                "memory": "512Mi"
+              }
+            },
+            "envFrom": [
+              {
+                "configMapRef": {
+                  "name": "leadforge-config"
+                }
+              }
+            ],
+            "env": [
+              {
+                "name": "LEADFORGE_STAGE_ROLE",
+                "value": "migrator"
+              }
+            ],
+            "command": [
+              "python",
+              "/staging/run_backend.py"
+            ],
+            "volumeMounts": [
+              {
+                "name": "credentials",
+                "mountPath": "/run/secrets",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "credentials",
+            "secret": {
+              "secretName": "leadforge-credentials",
+              "defaultMode": 288,
+              "items": [
+                {
+                  "key": "migrator_password",
+                  "path": "migrator_password"
+                }
+              ]
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "restartPolicy": "Never"
+      }
+    }
+  }
+}

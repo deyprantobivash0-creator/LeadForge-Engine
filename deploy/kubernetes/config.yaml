@@ -1,0 +1,18 @@
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "leadforge-config"
+  },
+  "data": {
+    "ENVIRONMENT": "production",
+    "LEADFORGE_STAGING": "true",
+    "AI_PROVIDER": "mock",
+    "SESSION_COOKIE_SECURE": "true",
+    "CORS_ORIGINS": "https://staging.leadforge.test",
+    "VERSION": "5h-l-local",
+    "LOG_LEVEL": "INFO",
+    "RATE_LIMIT_ENABLED": "true",
+    "LEADFORGE_SCHEMA_HEAD": "e5d4c3b2a1f0"
+  }
+}
