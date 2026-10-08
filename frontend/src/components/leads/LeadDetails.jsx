@@ -9,6 +9,7 @@ const dateValue = (value) => value ? `${value}T00:00:00` : null;
 export default function LeadDetails({ leadId, onClose, onSaved }) {
   const panelRef = useRef(null);
   const closeRef = useRef(null);
+  const mutationRef = useRef(false);
   const [lead, setLead] = useState(null);
   const [intelligence, setIntelligence] = useState(null);
   const [status, setStatus] = useState("New");
@@ -20,6 +21,7 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [mutationError, setMutationError] = useState("");
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -57,6 +59,8 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
 
   async function save(event) {
     event.preventDefault();
+    if (mutationRef.current) return;
+    mutationRef.current = true; setMutationError("");
     setSaving(true);
     setMessage("");
     try {
@@ -67,13 +71,16 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
       setRevision((value) => value + 1);
       onSaved?.();
     } catch (failure) {
-      setMessage(failure.message);
+      setMutationError(failure.message);
     } finally {
+      mutationRef.current = false;
       setSaving(false);
     }
   }
 
   async function runProcessing() {
+    if (mutationRef.current) return;
+    mutationRef.current = true; setMutationError("");
     setProcessing(true);
     setMessage("");
     try {
@@ -82,8 +89,9 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
       setRevision((value) => value + 1);
       onSaved?.();
     } catch (failure) {
-      setMessage(failure.message);
+      setMutationError(failure.message);
     } finally {
+      mutationRef.current = false;
       setProcessing(false);
     }
   }
@@ -91,17 +99,17 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
   return <div className="lead-details-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="lead-details-panel" role="dialog" aria-modal="true" aria-labelledby="lead-details-title" ref={panelRef} onMouseDown={(event) => event.stopPropagation()}>
       <div className="details-header"><div><span className="section-kicker">LEAD DETAILS</span><h2 id="lead-details-title">{lead?.company || "Lead details"}</h2></div><button ref={closeRef} type="button" onClick={onClose} aria-label="Close lead details">×</button></div>
-      {loading && <p>Loading lead...</p>}
+      {loading && <p role="status">Loading lead...</p>}
       {!loading && error && <div role="alert"><p>{error}</p><button onClick={() => { setLoading(true); setRevision((value) => value + 1); }}>Retry</button></div>}
       {!loading && !error && lead && <div className="details-content">
         <p>{lead.email} · {lead.source}</p>
         <p>Lifecycle: {lead.status} · Processing: {lead.processing_status}</p>
         <div className="intelligence-box"><h3>Lead intelligence</h3>
           {intelligence ? <><p>Priority: {intelligence.priority} · AI Score: {intelligence.lead_score}/100</p>{intelligence.result?.company?.summary && <p>{intelligence.result.company.summary}</p>}</> : <p>Not analyzed yet.</p>}
-          <button type="button" onClick={runProcessing} disabled={processing || lead.processing_status === "processing"}>
+          <button type="button" onClick={runProcessing} disabled={saving || processing || lead.processing_status === "processing"}>
             {processing ? "Processing..." : intelligence ? "Re-analyze Lead" : "Process Lead"}
           </button>
-          {lead.processing_status === "processing" && !processing && <p>Processing is in progress. Refresh to check its status.</p>}
+          {lead.processing_status === "processing" && !processing && <p>Processing is in progress. <button type="button" onClick={() => setRevision((value) => value + 1)}>Refresh status</button></p>}
           <Link className="lead-intelligence-link" to={`/ai/${leadId}`}>View full intelligence →</Link>
         </div>
         <form className="lifecycle-editor" onSubmit={save}>
@@ -114,7 +122,8 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
           <input id="last-contacted" type="date" value={lastContacted} onChange={(event) => setLastContacted(event.target.value)} />
           <label htmlFor="next-follow-up">Next follow-up</label>
           <input id="next-follow-up" type="date" value={nextFollowUp} onChange={(event) => setNextFollowUp(event.target.value)} />
-          <button className="save-lifecycle-button" type="submit" disabled={saving}>{saving ? "Saving..." : "Save changes"}</button>
+          <button className="save-lifecycle-button" type="submit" disabled={saving || processing}>{saving ? "Saving..." : "Save changes"}</button>
+          {mutationError && <p role="alert">{mutationError}</p>}
           {message && <p role="status">{message}</p>}
         </form>
       </div>}

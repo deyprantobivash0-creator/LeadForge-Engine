@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { exportReport, getReportOverview } from "../services/reportService";
 import "../styles/reports-workspace.css";
+import { validReportRange } from "../utils/validation";
 
 const periods = [["today", "Today"], ["7d", "7 days"], ["30d", "30 days"], ["custom", "Custom"]];
 const priorities = ["Hot", "Warm", "Cold", "Other"];
@@ -28,7 +29,7 @@ export default function Reports() {
   const [exportError, setExportError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [revision, setRevision] = useState(0);
-  const invalid = preset === "custom" && (!start || !end || start > end || (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000 >= 365);
+  const invalid = preset === "custom" && !validReportRange(start, end);
   const params = preset === "custom" ? { preset, start, end } : { preset };
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function Reports() {
   return <div className="reports-page">
     <header className="reports-header"><div><span className="section-kicker">LEADFORGE / REPORTS</span><h1>Intelligence Reports</h1><p>Review historical Lead intelligence activity and qualification results.</p></div>
       <button className="lf-button lf-button-primary" type="button" onClick={download} disabled={!data || loading || invalid || exporting}>{exporting ? "Preparing CSV…" : "Export CSV"}</button></header>
-    <section className="reports-controls" aria-label="Report period"><div className="reports-presets">{periods.map(([value, label]) => <button type="button" key={value} className={preset === value ? "active" : ""} aria-pressed={preset === value} onClick={() => { setData(null); setLoading(true); setError(""); setPreset(value); }}>{label}</button>)}</div>
+    <section className="reports-controls" aria-label="Report period"><div className="reports-presets">{periods.map(([value, label]) => <button type="button" key={value} className={preset === value ? "active" : ""} aria-pressed={preset === value} onClick={() => { setData(null); setLoading(true); setError(""); setPreset(value); setRevision((current) => current + 1); }}>{label}</button>)}</div>
       {preset === "custom" && <div className="reports-dates"><label>Start date<input type="date" value={start} onChange={(event) => { setData(null); setLoading(true); setError(""); setStart(event.target.value); }} /></label><label>End date<input type="date" value={end} onChange={(event) => { setData(null); setLoading(true); setError(""); setEnd(event.target.value); }} /></label></div>}
       <p>All report times are UTC. Custom end date is inclusive.</p>{invalid && <p className="reports-validation" role="status">Choose both dates in order, within 365 days.</p>}</section>
     {exportError && <p className="reports-validation" role="alert">Export failed: {exportError}</p>}

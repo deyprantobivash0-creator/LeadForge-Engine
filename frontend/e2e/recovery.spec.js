@@ -17,4 +17,5 @@ test('browser recovers after service restarts and shows retained intelligence af
   await page.keyboard.press('Escape');
   await page.goto(`/ai/${lead.id}`);
   await expect(page.getByRole('heading').filter({ hasText: company })).toBeVisible();
+  await expect(page.getByText('Previous successful intelligence remains available below.', { exact: false })).toBeVisible();
 });

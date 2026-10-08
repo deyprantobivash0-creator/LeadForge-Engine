@@ -7,7 +7,7 @@ export const test = base.extend({
     const intentional = ({ path, status }) =>
       (status === 401 && ['/api/auth/me', '/api/auth/login'].includes(path)) ||
       (status === 403 && ['/api/auth/logout', '/api/leads/'].includes(path)) ||
-      (status === 404 && /^\/api\/leads\/\d+$/.test(path)) ||
+      (status === 404 && /^\/api\/leads\/\d+(?:\/analyses)?$/.test(path)) ||
       (status === 422 && path === '/api/imports/leads/preview');
     const httpFailures = [];
     await page.context().route('**/*', route => route.request().url().startsWith('http://127.0.0.1:8080/')
@@ -24,8 +24,9 @@ export const test = base.extend({
     });
     await providePage(page);
     await testInfo.attach('browser-errors', { body: JSON.stringify({ errors, httpFailures }), contentType: 'application/json' });
-    expect(errors).toEqual([]);
-    expect(httpFailures.filter(f => !intentional(f))).toEqual([]);
+    const permitted = (type, value) => testInfo.annotations.some(item => item.type === type && value.includes(item.description));
+    expect(errors.filter(error => !permitted('expected-browser-error', error))).toEqual([]);
+    expect(httpFailures.filter(f => !intentional(f) && !permitted('expected-http', `${f.status} ${f.path}`))).toEqual([]);
   },
 });
 export { expect };

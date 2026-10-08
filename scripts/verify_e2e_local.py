@@ -29,6 +29,7 @@ def memory_bytes(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence', default='.staging-artifacts/5j-l')
+    parser.add_argument('--product-hardening', action='store_true', help='Release browser suite, focused reads and restart recovery only')
     args = parser.parse_args()
     evidence = (ROOT / args.evidence).resolve()
     if not evidence.is_relative_to(ROOT / '.staging-artifacts'):
@@ -109,6 +110,27 @@ def main():
         print('Running browser journeys against production Nginx', flush=True)
         browser()
         report['browser'] = 'PASS'
+        if args.product_hardening:
+            helper('e2e_fixture.py', 'failed-analysis')
+            for service in ['backend', 'frontend']:
+                run([*compose, 'restart', service]); wait_ready()
+                report['resilience'][service] = {'recovered': True}
+            # Shared real login budget remains enforced, never weakened for tests.
+            time.sleep(61)
+            output = helper('local_performance.py', '--sanity')
+            payload = next(line[len('E2E_RESULT='):] for line in output.splitlines() if line.startswith('E2E_RESULT='))
+            (evidence / 'performance.json').write_text(json.dumps(json.loads(payload), indent=2) + '\n', encoding='utf-8')
+            frontend = run([*compose, 'ps', '-q', 'frontend']).strip()
+            run([docker, 'run', '--rm', '--network', 'container:' + frontend, '--ipc', 'host', '-e', 'E2E_RECOVERY=1', '-e', 'E2E_REPORT=/evidence/browser-recovery.json', '--mount', f'type=bind,source={evidence},target=/evidence', project + ':browser', 'npx', '--no-install', 'playwright', 'test', 'auth.spec.js', 'recovery.spec.js'], capture=False)
+            report['query_review'] = json.loads(helper('e2e_fixture.py', 'query-review').strip().splitlines()[-1])
+            logs = run([*compose, 'logs', '--no-color', 'backend'])
+            assert env['LEADFORGE_RUNTIME_DB_PASSWORD'] not in logs and 'local synthetic E2E password' not in logs
+            assert '"request_id":"e2e-' in logs and '"request_id":"e2e-browser-' in logs
+            report['log_correlation_privacy'] = True
+            report['status'] = 'PASS'
+            print('PASS product-hardening browser, focused performance, privacy and restart recovery', flush=True)
+            return
+
         failed = helper('e2e_fixture.py', 'failed-analysis')
         report['failed_analysis'] = json.loads(failed.strip().splitlines()[-1])
         print('Waiting for the existing shared login budget before bounded measurements', flush=True)

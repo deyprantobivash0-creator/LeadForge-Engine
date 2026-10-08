@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { leadFields, apiFieldErrors } from "../../utils/validation";
 import { createLead } from "../../services/leadService";
 
 export default function AddLeadDialog({ onClose, onCreated }) {
@@ -10,6 +11,7 @@ export default function AddLeadDialog({ onClose, onCreated }) {
   const [source, setSource] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fields, setFields] = useState({});
 
   useEffect(() => {
     const previousFocus = document.activeElement;
@@ -29,7 +31,13 @@ export default function AddLeadDialog({ onClose, onCreated }) {
 
   async function submit(event) {
     event.preventDefault();
-    if (saving) return;
+    if (savingRef.current) return;
+    const invalid = leadFields({ company, email, source });
+    setFields(invalid);
+    if (Object.keys(invalid).length) {
+      dialogRef.current.querySelector(`#new-lead-${Object.keys(invalid)[0]}`)?.focus();
+      return;
+    }
     savingRef.current = true;
     setSaving(true);
     setError("");
@@ -37,6 +45,7 @@ export default function AddLeadDialog({ onClose, onCreated }) {
       await createLead({ company: company.trim(), email: email.trim(), source: source.trim() });
       onCreated();
     } catch (failure) {
+      setFields(apiFieldErrors(failure));
       setError(failure.status === 409 ? "A lead with this email already exists in this workspace." : failure.message);
     } finally {
       savingRef.current = false;
@@ -49,9 +58,10 @@ export default function AddLeadDialog({ onClose, onCreated }) {
       <div className="lead-dialog-header"><div><span className="section-kicker">LEAD WORKSPACE</span><h2 id="add-lead-title">Add a lead</h2></div><button type="button" className="lead-dialog-close" onClick={onClose} disabled={saving} aria-label="Close Add Lead dialog">×</button></div>
       <p className="lead-dialog-intro">Add a company and contact email to this workspace.</p>
       <form onSubmit={submit} className="lead-dialog-form">
-        <label htmlFor="new-lead-company">Company</label><input ref={companyRef} id="new-lead-company" value={company} onChange={(event) => setCompany(event.target.value)} required maxLength={200} autoComplete="organization" />
-        <label htmlFor="new-lead-email">Email</label><input id="new-lead-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={200} autoComplete="email" />
-        <label htmlFor="new-lead-source">Source</label><input id="new-lead-source" value={source} onChange={(event) => setSource(event.target.value)} required maxLength={100} placeholder="Where this lead came from" />
+        <label htmlFor="new-lead-company">Company</label><input ref={companyRef} id="new-lead-company" aria-invalid={!!fields.company} aria-describedby={fields.company ? "company-error" : undefined} value={company} onChange={(event) => setCompany(event.target.value)} required maxLength={200} autoComplete="organization" />
+        <label htmlFor="new-lead-email">Email</label><input id="new-lead-email" aria-invalid={!!fields.email} aria-describedby={fields.email ? "email-error" : undefined} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={200} autoComplete="email" />
+        <label htmlFor="new-lead-source">Source</label><input id="new-lead-source" aria-invalid={!!fields.source} aria-describedby={fields.source ? "source-error" : undefined} value={source} onChange={(event) => setSource(event.target.value)} required maxLength={100} placeholder="Where this lead came from" />
+        {Object.entries(fields).map(([field, message]) => <p id={`${field}-error`} key={field} className="lead-dialog-error" role="alert">{message}</p>)}
         {error && <p role="alert" className="lead-dialog-error">{error}</p>}
         <div className="lead-dialog-actions"><button type="button" className="lf-button lf-button-secondary" onClick={onClose} disabled={saving}>Cancel</button><button type="submit" className="lf-button lf-button-primary" disabled={saving}>{saving ? "Adding..." : "Add Lead"}</button></div>
       </form>

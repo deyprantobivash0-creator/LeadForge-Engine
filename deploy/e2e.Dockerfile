@@ -5,4 +5,5 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY frontend/playwright.config.js ./
 COPY frontend/e2e/ ./e2e/
+COPY frontend/src/utils/validation.js ./src/utils/validation.js
 CMD ["npx", "--no-install", "playwright", "test"]

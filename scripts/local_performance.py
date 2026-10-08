@@ -82,6 +82,10 @@ def main():
         output['baseline'][name] = summary(samples)
         assert all(s[0] == 200 for s in samples)
     print('E2E_PROGRESS=' + json.dumps(output['baseline']), flush=True)
+    if '--sanity' in sys.argv:
+        output['mode'] = 'focused release sanity; 30 requests per endpoint, no load campaign'
+        print('E2E_RESULT=' + json.dumps(output), flush=True)
+        return
     # Freeze only synthetic auth cookies; separate opener per worker prevents cookie-jar races.
     cookie = '; '.join(c.name + '=' + c.value for c in client.jar)
     read_headers = {**client.headers, 'Cookie': cookie}
@@ -168,4 +172,4 @@ def probe(mode):
 
 
 if __name__ == '__main__':
-    probe(sys.argv[1]) if len(sys.argv) > 1 else main()
+    probe(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1] in ['--session-probe', '--outage-probe'] else main()

@@ -88,7 +88,7 @@ export function AuthProvider({ children }) {
 
   configureApi({
     organizationId: organization?.id ?? null,
-    unauthorized: clearAuth,
+    unauthorized: () => { clearAuth(); setAccessMessage("Your session has ended. Sign in again to continue."); },
     forbidden: handleForbidden,
   });
 

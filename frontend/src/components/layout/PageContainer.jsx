@@ -1,6 +1,6 @@
 function PageContainer({ children }) {
   return (
-    <main className="page-container">
+    <main className="page-container" id="main-content" tabIndex={-1}>
       {children}
     </main>
   );

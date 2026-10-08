@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function WorkspaceSelection() {
-  const { organizations, selectOrganization, logout, accessMessage } = useAuth();
+  const { organizations, selectOrganization, logout, accessMessage, restoreSession } = useAuth();
   const [error, setError] = useState("");
   return <main className="auth-screen">
     <section className="auth-card glass">
       <span className="section-eyebrow">WORKSPACE</span>
       <h1>Select a workspace</h1>
       {accessMessage && <p role="alert" className="auth-error">{accessMessage}</p>}
-      {organizations.length === 0 ? <p>No active workspaces are available for this account.</p> :
+      {organizations.length === 0 ? <div><p>No active workspaces are available for this account.</p><p>Ask your workspace administrator to grant access, then check again. Workspace creation is not available here.</p><button type="button" onClick={() => restoreSession()}>Check workspace access</button></div> :
         <div className="workspace-options">{organizations.map((item) =>
           <button type="button" key={item.id} onClick={() => selectOrganization(item.id)}>{item.name} <small>{item.role}</small></button>
         )}</div>}

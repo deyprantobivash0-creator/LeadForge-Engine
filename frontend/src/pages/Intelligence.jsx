@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BrainCircuit, Clock3, Database, Sparkles } from "lucide-react";
 import { getAnalysisHistory, getLead, getLeads, processLead } from "../services/leadService";
@@ -33,7 +33,7 @@ function Score({ analysis }) {
       <div className="score-meter" role="meter" aria-label="AI Score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={analysis.score}>
         <span style={{ width: `${analysis.score}%` }} />
       </div>
-      <div className="score-footer"><span>Backend analysis</span>{analysis.priority && <Badge tone={analysis.priority.toLowerCase()}>{analysis.priority} priority</Badge>}</div>
+      <div className="score-footer"><span>Saved assessment</span>{analysis.priority && <Badge tone={analysis.priority.toLowerCase()}>{analysis.priority} priority</Badge>}</div>
     </> : <StateMessage title="Not analyzed">Run an analysis to see a score and priority.</StateMessage>}
   </section>;
 }
@@ -111,6 +111,7 @@ function SelectedLead({ leadId }) {
   const [processing, setProcessing] = useState(false);
   const [processError, setProcessError] = useState("");
   const [processMessage, setProcessMessage] = useState("");
+  const processingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -123,7 +124,7 @@ function SelectedLead({ leadId }) {
     let active = true;
     getAnalysisHistory(leadId, { limit: HISTORY_LIMIT, offset }).then((result) => {
       if (!active) return;
-      setHistory((previous) => ({ leadId, items: offset === 0 || previous?.leadId !== leadId ? result.items : [...previous.items, ...result.items], total: result.total }));
+      setHistory((previous) => ({ leadId, items: offset === 0 || previous?.leadId !== leadId ? result.items : [...new Map([...previous.items, ...result.items].map((item) => [item.id, item])).values()], total: result.total }));
       setHistoryError("");
     }).catch((failure) => { if (active) setHistoryError(failure.message); })
       .finally(() => { if (active) setHistoryLoading(false); });
@@ -131,7 +132,8 @@ function SelectedLead({ leadId }) {
   }, [leadId, offset, historyRevision]);
 
   async function analyze() {
-    if (processing) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
     setProcessing(true);
     setProcessError("");
     setProcessMessage("");
@@ -147,6 +149,7 @@ function SelectedLead({ leadId }) {
       // A failed attempt may update processing_status, but the prior analysis stays visible.
       getLead(leadId).then(setLead).catch(() => {});
     } finally {
+      processingRef.current = false;
       setProcessing(false);
     }
   }
@@ -163,13 +166,14 @@ function SelectedLead({ leadId }) {
           <div className="intelligence-badges"><Badge>{lead.status}</Badge><Badge tone={lead.processing_status}>{lead.processing_status}</Badge>{analysis?.priority && <Badge tone={analysis.priority.toLowerCase()}>{analysis.priority} priority</Badge>}</div>
           <span className="analysis-time">Last analyzed: {formatAnalysisDate(analysis?.createdAt)}</span>
         </div>
-        <div className="intelligence-hero-actions"><button type="button" className="lf-button lf-button-primary" onClick={analyze} disabled={processing || lead.processing_status === "processing"}><Sparkles size={17} aria-hidden="true" />{processing ? "Analyzing..." : analysis ? "Re-analyze Lead" : "Analyze Lead"}</button>{lead.processing_status === "processing" && !processing && <small>Analysis is already in progress.</small>}</div>
+        <div className="intelligence-hero-actions"><button type="button" className="lf-button lf-button-primary" onClick={analyze} disabled={processing || lead.processing_status === "processing"}><Sparkles size={17} aria-hidden="true" />{processing ? "Analyzing..." : analysis ? "Re-analyze Lead" : "Analyze Lead"}</button>{lead.processing_status === "processing" && !processing && <small>Analysis is already in progress.</small>}{lead.processing_status === "processing" && !processing && <button type="button" className="lf-button lf-button-secondary" onClick={() => setRevision((value) => value + 1)}>Refresh status</button>}</div>
       </header>
       {processing && <p className="intelligence-notice" role="status">Processing this lead. Results will refresh when the request completes.</p>}
       {processMessage && <p className="intelligence-notice success" role="status">{processMessage}</p>}
+      {lead.processing_status === "failed" && !processError && <p role="status" className="intelligence-notice">The latest analysis attempt failed. {analysis ? "Previous successful intelligence remains available below." : "No successful intelligence has been saved yet."} You can retry Analyze Lead.</p>}
       {processError && <p className="intelligence-notice error" role="alert">Analysis failed: {processError}{analysis ? " Previous intelligence remains available." : ""}</p>}
       {error && <p className="intelligence-notice error" role="alert">Could not refresh lead details: {error}</p>}
-      <div className="intelligence-overview"><Score analysis={analysis} /><section className="intelligence-card action-panel"><span className="section-kicker">NEXT BEST ACTION</span><h2>{analysis?.recommendedAction || "No action available"}</h2><p>{analysis ? "From the latest saved Lead Brain decision." : "Analyze this lead to see its saved recommendation."}</p></section></div>
+      <div className="intelligence-overview"><Score analysis={analysis} /><section className="intelligence-card action-panel"><span className="section-kicker">NEXT BEST ACTION</span><h2>{analysis?.recommendedAction || "No action available"}</h2><p>{analysis ? "From the latest successful saved assessment." : "Analyze this lead to see its saved recommendation."}</p></section></div>
       {analysis ? <>
         <section className="intelligence-section"><div className="section-heading"><div><span className="section-kicker">LEAD BRAIN</span><h2>Intelligence dimensions</h2></div></div><div className="dimension-grid">{dimensions.map((dimension) => <Dimension key={dimension.key} dimension={dimension} />)}</div></section>
         <section className="intelligence-card reasoning-section"><span className="section-kicker">WHY THIS LEAD MATTERS</span><h2>Assessment summary</h2><div className="reasoning-grid">{dimensions.map((dimension) => <div key={dimension.key}><strong>{dimension.label}</strong><p>{dimension.summary || "No summary available."}</p></div>)}</div></section>
@@ -182,5 +186,6 @@ function SelectedLead({ leadId }) {
 
 export default function Intelligence() {
   const { leadId } = useParams();
+  if (leadId && (!/^[1-9]\d*$/.test(leadId) || !Number.isSafeInteger(Number(leadId)))) return <section><h1>Lead unavailable</h1><p>Choose a lead from the current workspace.</p><Link to="/leads">Return to Leads</Link></section>;
   return leadId ? <SelectedLead key={leadId} leadId={leadId} /> : <LeadSelection />;
 }

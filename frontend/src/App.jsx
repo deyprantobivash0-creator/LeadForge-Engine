@@ -5,6 +5,8 @@ import {
   Link,
 } from "react-router-dom";
 
+import RouteFocus from "./components/layout/RouteFocus";
+
 import Sidebar from "./components/layout/Sidebar";
 import Topbar from "./components/layout/Topbar";
 import PageContainer from "./components/layout/PageContainer";
@@ -27,12 +29,14 @@ function NotFound() {
 }
 function AppContent() {
   const { user, organization, loading, error, accessMessage, restoreSession } = useAuth();
-  if (loading) return <main className="auth-screen">Restoring session...</main>;
+  if (loading) return <main className="auth-screen" role="status" aria-live="polite">Restoring session...</main>;
   if (error) return <main className="auth-screen"><div className="auth-card glass" role="alert"><p>{error}</p><button onClick={restoreSession}>Retry</button></div></main>;
   if (!user) return <Login />;
   if (!organization) return <WorkspaceSelection />;
   return (
       <div className="app-shell" key={organization.id}>
+        <a className="skip-link" href="#main-content">Skip to content</a>
+        <RouteFocus />
         <div className="bg-orb orb-purple"></div>
         <div className="bg-orb orb-blue"></div>
         <div className="bg-orb orb-sage"></div>

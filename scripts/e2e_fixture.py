@@ -20,16 +20,26 @@ with SessionLocal() as db:
     if mode == 'seed':
         assert db.scalar(select(User.id).limit(1)) is None, 'Must be fresh disposable database'
         user = User(email='e2e@example.com', password_hash=hash_password('local synthetic E2E password'))
-        orgs = [Organization(name='E2E ' + name, slug='e2e-' + name.lower()) for name in ['Alpha', 'Beta']]
-        db.add_all([user, *orgs]); db.flush()
+        orgs = [Organization(name='E2E ' + name, slug='e2e-' + name.lower()) for name in ['Alpha', 'Beta', 'Empty']]
+        db.add_all([user, *orgs, User(email='no-workspace@example.com', password_hash=hash_password('local synthetic E2E password'))]); db.flush()
         db.add_all([OrganizationMembership(user_id=user.id, organization_id=o.id, role='owner') for o in orgs])
-        for index, org in enumerate(orgs):
+        for index, org in enumerate(orgs[:2]):
             db.add(Lead(organization_id=org.id, company='E2E Synthetic Lead' if index == 0 else 'Tenant Beta Sentinel', email=f'fixture-{index}@example.com', source='e2e'))
         db.commit()
         lead = db.scalar(select(Lead).where(Lead.organization_id == orgs[0].id))
         for score in [80, 30]:
             db.add(LeadAnalysis(organization_id=orgs[0].id, lead_id=lead.id, company=lead.company, email=lead.email, priority='Hot' if score == 80 else 'Cold', lead_score=score, result={}, created_at=datetime.utcnow()))
         lead.processing_status = 'completed'; lead.lead_score = 30; lead.priority = 'Cold'
+        populated = Organization(name='E2E Populated', slug='e2e-populated')
+        db.add(populated); db.flush()
+        db.add(OrganizationMembership(user_id=user.id, organization_id=populated.id, role='owner'))
+        for index, state in enumerate(['New', 'Qualified', 'Contacted', 'Meeting', 'Won', 'Lost']):
+            item = Lead(organization_id=populated.id, company='Populated ' + state, email=f'populated-{index}@example.com', source='synthetic-release', status=state)
+            db.add(item); db.flush()
+            if index < 3:
+                score, priority = [(90, 'Hot'), (65, 'Warm'), (30, 'Cold')][index]
+                db.add(LeadAnalysis(organization_id=populated.id, lead_id=item.id, company=item.company, email=item.email, priority=priority, lead_score=score, result={}))
+                item.lead_score = score; item.priority = priority; item.processing_status = 'completed'
         db.commit()
         print(json.dumps({'synthetic': True, 'organizations': [o.id for o in orgs], 'lead_id': lead.id}))
     elif mode == 'failed-analysis':
