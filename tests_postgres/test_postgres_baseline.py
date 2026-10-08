@@ -68,6 +68,57 @@ def header(workspace, key):
     return {"X-Organization-ID": str(workspace["ids"][key])}
 
 
+def test_direct_create_race_classifies_only_tenant_email_and_recovers_session(workspace, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    from backend.database.session import SessionLocal
+    from backend.models import Lead
+    from backend.repositories.lead_repository import LeadRepository
+    from backend.services.lead_service import LeadService
+
+    original = LeadRepository.create_lead
+    barrier = Barrier(2)
+    violations = []
+    lock = Lock()
+
+    def concurrent_create(repository, lead):
+        barrier.wait(timeout=15)
+        try:
+            return original(repository, lead)
+        except IntegrityError as exc:
+            with lock:
+                violations.append((exc.orig.sqlstate, exc.orig.diag.constraint_name))
+            raise
+
+    monkeypatch.setattr(LeadRepository, 'create_lead', concurrent_create)
+    org_id = workspace['ids']['a']
+
+    def create(_):
+        with SessionLocal() as db:
+            try:
+                LeadService(db).create_lead('Race Synthetic', 'direct-race@example.com', 'fixture', org_id)
+                result = 'accepted'
+            except ValueError as exc:
+                assert str(exc) == 'A lead with this email already exists in this organization.'
+                result = 'duplicate'
+            assert db.scalar(select(Lead.id).where(Lead.organization_id == org_id, Lead.email == 'direct-race@example.com'))
+            return result
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(create, range(2))) == ['accepted', 'duplicate']
+    assert violations == [('23505', 'uq_leads_organization_email')]
+
+    def invalid_create(repository, lead):
+        lead.company = None
+        return original(repository, lead)
+
+    monkeypatch.setattr(LeadRepository, 'create_lead', invalid_create)
+    with SessionLocal() as db:
+        with pytest.raises(IntegrityError) as failure:
+            LeadService(db).create_lead('Invalid Synthetic', 'not-null@example.com', 'fixture', org_id)
+        assert failure.value.orig.sqlstate == '23502'
+        assert db.scalar(select(Lead.id).where(Lead.organization_id == org_id, Lead.email == 'not-null@example.com')) is None
+
+
 def test_fresh_migration_matches_mapped_tables(pg_database):
     from backend.database.base import Base
     from backend.database.session import engine

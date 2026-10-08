@@ -12,6 +12,9 @@ venv
 .venv-ci
 .ci-tools
 **/node_modules
+frontend/test-results
+frontend/playwright-report
+frontend/blob-report
 **/dist
 **/__pycache__
 **/*.py[cod]

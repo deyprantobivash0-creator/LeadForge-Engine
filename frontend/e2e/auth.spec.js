@@ -1,0 +1,31 @@
+import { test, expect } from './helpers/test.js';
+import { login, api } from './helpers/auth.js';
+import { account } from './fixtures/data.js';
+
+test('invalid login, explicit workspace, session persistence and revoked logout', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Email', { exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused();
+  await page.getByLabel('Email', { exact: true }).fill(account.email);
+  await page.getByLabel('Password', { exact: true }).fill('invalid synthetic password');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Invalid email or password.');
+  await login(page);
+  expect((await api(page, '/api/leads/', { headers: { 'X-Organization-ID': '2147483647' } })).status).toBe(403);
+  expect((await api(page, '/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': 'incorrect' } })).status).toBe(403);
+  await page.goto('/settings');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Settings & Integrations' })).toBeVisible();
+  const cookies = await page.context().cookies();
+  expect(cookies.find(c => c.name === 'leadforge_session').httpOnly).toBe(true);
+  const logout = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/logout' && response.request().method() === 'POST');
+  await page.locator('#settings-security').getByRole('button', { name: 'Sign out', exact: true }).click();
+  expect((await logout).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+  const replay = await page.request.get('/api/auth/me', { headers: { Cookie: cookies.map(c => `${c.name}=${c.value}`).join('; ') } });
+  expect(replay.status()).toBe(401);
+  await page.goto('/leads');
+  await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
+  expect((await api(page, '/api/auth/me')).status).toBe(401);
+});
