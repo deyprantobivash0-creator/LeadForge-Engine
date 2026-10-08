@@ -13,6 +13,7 @@ class RequestSecurityMiddleware:
         # Browser origin hosts are the canonical deployment hosts. Loopback is
         # reserved for internal readiness probes; testserver is never production.
         self.hosts = {urlsplit(origin).hostname for origin in settings.allowed_origins}
+        self.hosts.update(host for host in settings.TRUSTED_HOSTS.split(",") if host)
         self.hosts.update({"127.0.0.1", "localhost", "[::1]"})
         if settings.ENVIRONMENT != "production":
             self.hosts.add("testserver")

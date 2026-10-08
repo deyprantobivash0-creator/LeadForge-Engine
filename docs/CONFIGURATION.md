@@ -208,3 +208,22 @@ See [Observability](OBSERVABILITY.md). Canonical JSON logging uses the existing
 LOG_LEVEL and 5C redaction utility; SLOW_REQUEST_MS is the only new setting.
 Safe stack locations now supplement exception categories without driver messages,
 locals or source lines. Configuration validation and external injection stay intact.
+
+## Render free staging adapter (Step 5H-A)
+
+`TRUSTED_HOSTS` optionally adds exact DNS hostnames to transport Host validation,
+independently of browser CORS origins. Comma-separated names are normalized and
+validated; wildcard hosts, URLs, ports and credentials fail closed. Local defaults
+remain empty. Render's server-only `RENDER_EXTERNAL_HOSTNAME` is added by
+`deploy/render/runtime.py` before canonical Settings loads. This permits backend
+health probes and direct transport tests without granting browser origins or
+application authorization.
+
+The Render adapter normalizes `postgres://` or `postgresql://` into the existing
+`postgresql+psycopg://` driver contract, preserving encoded credentials and canonical
+identity validation. Internal database transport requires TLS (`sslmode=require`)
+because Render documents self-signed internal certificates. Operator external
+transport requires `verify-full` and an explicit trusted CA file. No URL is logged.
+See [Render staging](RENDER_STAGING.md) for the runtime/build/public/secret inventory.
+ENVIRONMENT remains production with LEADFORGE_STAGING=true and mock AI; there is no
+new environment mode, signing secret, dotenv source or automatic migration.

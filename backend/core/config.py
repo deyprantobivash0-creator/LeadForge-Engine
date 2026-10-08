@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
     HUBSPOT_ACCESS_TOKEN: SecretStr = SecretStr("")
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    TRUSTED_HOSTS: str = ""
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     SLOW_REQUEST_MS: int = Field(default=2000, ge=1, le=600000)
     RATE_LIMIT_ENABLED: bool = True
@@ -131,6 +132,11 @@ class Settings(BaseSettings):
         if not origins or any(not origin for origin in origins):
             raise ValueError("CORS_ORIGINS must contain explicit non-empty origins")
         self.CORS_ORIGINS = ",".join(dict.fromkeys(validate_origin(origin, production=production) for origin in origins))
+        hosts = [host.strip().lower() for host in self.TRUSTED_HOSTS.split(",") if host.strip()]
+        for host in hosts:
+            if len(host) > 253 or any(not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in host.split(".")):
+                raise ValueError("TRUSTED_HOSTS requires exact DNS hostnames, without wildcards, ports or URLs")
+        self.TRUSTED_HOSTS = ",".join(dict.fromkeys(hosts))
         for key in ("SESSION_COOKIE_NAME", "CSRF_COOKIE_NAME", "CSRF_HEADER_NAME"):
             value = getattr(self, key)
             if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", value):

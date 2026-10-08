@@ -1,0 +1,56 @@
+# Preparation only. Do not sync/create before explicit deployment authorization.
+# Manual dashboard ordering is recommended for first migration/role provisioning.
+services:
+  - type: web
+    name: leadforge-staging-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    repo: https://github.com/deyprantobivash0-creator/LeadForge-Engine
+    branch: main
+    autoDeployTrigger: 'off'
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python deploy/render/runtime.py start
+    healthCheckPath: /ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LEADFORGE_STAGING
+        value: 'true'
+      - key: AI_PROVIDER
+        value: mock
+      - key: LEADFORGE_RENDER_DB_TLS
+        value: internal
+      - key: SESSION_COOKIE_SECURE
+        value: 'true'
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+  - type: web
+    name: leadforge-staging-frontend
+    runtime: docker
+    plan: free
+    region: singapore
+    repo: https://github.com/deyprantobivash0-creator/LeadForge-Engine
+    branch: main
+    autoDeployTrigger: 'off'
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /frontend-health
+    envVars:
+      - key: LEADFORGE_RENDER
+        value: 'true'
+      - key: LEADFORGE_RENDER_BACKEND_ORIGIN
+        sync: false
+databases:
+  - name: leadforge-staging-postgres
+    plan: free
+    region: singapore
+    postgresMajorVersion: '16'
+    databaseName: leadforge_stage
+    user: leadforge_stage_owner
+    ipAllowList: []

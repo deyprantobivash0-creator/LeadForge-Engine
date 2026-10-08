@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt && pip check \
 COPY backend/ ./backend/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY deploy/render/runtime.py deploy/render/provision.py ./deploy/render/
+COPY deploy/staging/seed.py ./deploy/staging/seed.py
 
 USER 10001:10001
 EXPOSE 8000

@@ -15,6 +15,10 @@ def main():
     qa_password = Path("/run/secrets/qa_password").read_text().strip()
     os.environ["DATABASE_URL"] = URL.create("postgresql+psycopg", username="leadforge_stage_app",
         password=password, host="postgres", database="leadforge_stage").render_as_string(hide_password=False)
+    seed(qa_password)
+
+
+def seed(qa_password):
     from backend.core.config import settings
     if not (settings.ENVIRONMENT == "production" and settings.LEADFORGE_STAGING and settings.AI_PROVIDER == "mock"):
         raise ValueError("Strict staging configuration required")

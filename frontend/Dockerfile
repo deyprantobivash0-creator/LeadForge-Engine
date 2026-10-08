@@ -27,9 +27,11 @@ RUN apk del nginx nginx-module-acme nginx-module-geoip nginx-module-image-filter
     && apk add --no-cache nginx=1.28.3-r7 \
     && apk upgrade --no-cache
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/render/nginx.conf.template /etc/nginx/render.conf.template
+COPY deploy/render/start-nginx.sh /etc/nginx/start-nginx.sh
 COPY deploy/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=build /app/dist/ /usr/share/nginx/html/
 USER 101:101
 EXPOSE 8080
-ENTRYPOINT ["nginx"]
+ENTRYPOINT ["/bin/sh", "/etc/nginx/start-nginx.sh"]
 CMD ["-g", "daemon off;"]
