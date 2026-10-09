@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     HUBSPOT_ACCESS_TOKEN: SecretStr = SecretStr("")
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     TRUSTED_HOSTS: str = ""
+    RENDER_EXTERNAL_HOSTNAME: str = ""
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     SLOW_REQUEST_MS: int = Field(default=2000, ge=1, le=600000)
     RATE_LIMIT_ENABLED: bool = True
@@ -133,6 +134,12 @@ class Settings(BaseSettings):
             raise ValueError("CORS_ORIGINS must contain explicit non-empty origins")
         self.CORS_ORIGINS = ",".join(dict.fromkeys(validate_origin(origin, production=production) for origin in origins))
         hosts = [host.strip().lower() for host in self.TRUSTED_HOSTS.split(",") if host.strip()]
+        if self.RENDER_EXTERNAL_HOSTNAME:
+            # Infrastructure configuration only: never derive trust from forwarded headers.
+            # Keep validation here so direct Uvicorn startup has the same exact-host policy.
+            if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.onrender\.com", self.RENDER_EXTERNAL_HOSTNAME):
+                raise ValueError("RENDER_EXTERNAL_HOSTNAME requires an exact onrender.com hostname")
+            hosts.append(self.RENDER_EXTERNAL_HOSTNAME)
         for host in hosts:
             if len(host) > 253 or any(not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in host.split(".")):
                 raise ValueError("TRUSTED_HOSTS requires exact DNS hostnames, without wildcards, ports or URLs")

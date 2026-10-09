@@ -19,5 +19,7 @@ COPY deploy/render/runtime.py deploy/render/provision.py ./deploy/render/
 COPY deploy/staging/seed.py ./deploy/staging/seed.py
 
 USER 10001:10001
-EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-proxy-headers", "--no-access-log", "--no-server-header", "--timeout-graceful-shutdown", "30"]
+# Render supplies PORT=10000; local Compose uses the absent-PORT fallback of 8000.
+# EXPOSE documents both paths; the launcher consumes PORT for actual binding.
+EXPOSE 8000 10000
+CMD ["python", "deploy/render/runtime.py", "container"]

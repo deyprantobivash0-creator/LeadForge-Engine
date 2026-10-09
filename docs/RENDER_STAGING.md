@@ -50,9 +50,13 @@ Docker contexts are repository root `.` for both. Backend Dockerfile `./Dockerfi
 command `python deploy/render/runtime.py start`; frontend `./frontend/Dockerfile`,
 default command. Backend remains Python 3.12, UID 10001, one Uvicorn worker,
 0.0.0.0:$PORT, no reload/access logs/proxy-header trust. Nginx remains UID 101 with
-production assets, no Node runtime, 0.0.0.0:$PORT. PORT defaults to 8000/backend and
-10000/Render frontend; valid unprivileged integers only. Existing local frontend
-8080/config and backend CMD are unchanged unless the explicit Render path is selected.
+production assets, no Node runtime, 0.0.0.0:$PORT. Render supplies PORT=10000 by
+default; the backend consumes that value, with 8000 only when PORT is absent for
+local Compose. Valid unprivileged integers only. The image default CMD now selects
+the strict Render adapter when RENDER=true or RENDER_EXTERNAL_HOSTNAME is present;
+the explicit Blueprint command remains supported. Local frontend 8080/config and
+backend 8000 fallback preserve Compose URLs. EXPOSE 8000 10000 documents both paths
+and does not choose the listening port.
 `.dockerignore` excludes private env, DBs, dumps, dependencies, Git, scripts, docs and
 evidence. Explicit COPY packages only required adapter/shared seed code.
 
@@ -63,7 +67,7 @@ evidence. Explicit COPY packages only required adapter/shared seed code.
 | ENVIRONMENT=production; LEADFORGE_STAGING=true; AI_PROVIDER=mock | SERVER CONFIG | Backend/operator; no real provider keys |
 | DATABASE_URL | SECRET | Backend app-role INTERNAL URL; operator separate EXTERNAL owner/migrator/backup URLs; never bundle/log |
 | CORS_ORIGINS=https://ACTUAL-FRONTEND.onrender.com | PUBLIC CONFIG | Backend exact browser origin only; obtain hostname before configuring |
-| TRUSTED_HOSTS | SERVER CONFIG | Optional exact transport hosts, no wildcard; adapter adds backend hostname |
+| TRUSTED_HOSTS | SERVER CONFIG | Optional exact transport hosts, no wildcard; canonical settings merge the validated platform hostname |
 | RENDER_EXTERNAL_HOSTNAME; PORT | RENDER-PROVIDED | Both runtime services; hostname is public, port server-only |
 | LEADFORGE_RENDER=true | SERVER CONFIG | Frontend runtime switch only |
 | LEADFORGE_RENDER_BACKEND_ORIGIN=https://ACTUAL-BACKEND.onrender.com | SERVER CONFIG | Nginx runtime only, never VITE; public infrastructure address, not credential |
@@ -87,6 +91,36 @@ public configuration belongs in Blueprint values. Enter actual app credentials
 through Render Environment settings; owner/migrator/backup credentials stay local.
 
 ## Proxy, TLS, cookies, CORS and headers
+
+### October 9 host/port incident
+
+The user supplied remote logs report port 8000 discovery/network restart followed
+by HTTP 400 health probes until timeout. Before the hotfix, direct Docker CMD ignored
+PORT and bypassed the adapter's hostname merge. An isolated production reproduction
+returned `Invalid host.` from RequestSecurityMiddleware before `/ready` executed.
+The Blueprint adapter already handled both correctly; the remote start-command/env
+drift remains unverified. See [hotfix evidence](STEP_5H_B_HOST_PORT_HOTFIX.md).
+
+[Render defaults PORT to 10000](https://render.com/docs/web-services) and can detect
+alternate listeners, so 8000 explains the network reconfiguration but does not itself
+explain HTTP 400. [HTTP probes use the service's onrender.com Host](https://render.com/docs/health-checks)
+when no verified custom domain exists. Canonical settings now validate and include
+the exact RENDER_EXTERNAL_HOSTNAME even for direct Uvicorn startup. Explicit
+TRUSTED_HOSTS are preserved and deduplicated. URLs, paths, userinfo, whitespace,
+wildcards and ports are rejected; no `*.onrender.com` trust exists. A verified custom
+health-check domain must be explicitly included in TRUSTED_HOSTS. Forwarded Host
+never grants trust. Unknown/sibling hosts still receive 400; an originless GET with
+valid Host reaches `/ready` and still requires database access and matching heads.
+CORS remains exact frontend origins, separate from Host validation.
+
+Application startup still performs no migration. Readiness imports Alembic revisions
+and may emit migration logger diagnostics. Explicit `alembic upgrade head` checks
+stored revision and applies only missing migrations; retries at the required head
+are no-ops. Repeated health restarts do not invoke it in the reviewed source. If an
+operator has configured a remote startup migration command, inspect that command
+and migration identity before retrying; the supplied logs do not prove it exists.
+Free staging retains separate operator migration and role separation. A future
+paid pre-deploy command remains a separately reviewed transition.
 
 The frontend launch script validates PORT and exact HTTPS onrender.com upstream and
 frontend hosts before substituting fixed placeholders. Hostnames do not exist yet;

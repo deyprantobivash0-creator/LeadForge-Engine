@@ -6,6 +6,90 @@ from backend.core.config import Settings, settings
 from deploy.render.runtime import database_url
 
 
+RENDER_HOST = "leadforge-staging-backend-test.onrender.com"
+
+
+def test_platform_hostname_is_loaded_without_the_render_adapter(monkeypatch):
+    monkeypatch.setenv("RENDER_EXTERNAL_HOSTNAME", RENDER_HOST)
+    config = Settings(ENVIRONMENT="development", TRUSTED_HOSTS="manual.example.com")
+    assert config.TRUSTED_HOSTS == f"manual.example.com,{RENDER_HOST}"
+    assert config.allowed_origins == settings.allowed_origins
+
+
+@pytest.mark.parametrize("host", ["*", "*.onrender.com", "https://backend.onrender.com",
+    "backend.onrender.com/path", "user@backend.onrender.com", "backend.onrender.com:443",
+    " backend.onrender.com", "backend.onrender.com ", "bad\nhost", "backend.onrender.com?x=1",
+    "backend.onrender.com#fragment", "backend..onrender.com", "backend.example.com"])
+def test_platform_hostname_rejects_malformed_configuration(host):
+    with pytest.raises(ValidationError):
+        Settings(ENVIRONMENT="development", RENDER_EXTERNAL_HOSTNAME=host)
+
+
+def test_originless_render_probe_reaches_readiness_and_unknown_hosts_do_not(monkeypatch):
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    from backend.repositories.runtime_readiness_repository import RuntimeReadinessRepository
+    from backend.services.runtime_readiness_service import expected_heads
+    config = Settings(ENVIRONMENT="development", RENDER_EXTERNAL_HOSTNAME=RENDER_HOST,
+                      TRUSTED_HOSTS="manual.example.com")
+    monkeypatch.setattr(settings, "TRUSTED_HOSTS", config.TRUSTED_HOSTS)
+    calls = []
+    def ready(_repository):
+        calls.append(True)
+        return expected_heads()
+    monkeypatch.setattr(RuntimeReadinessRepository, "migration_heads", ready)
+    app.middleware_stack = None
+    try:
+        with TestClient(app) as client:
+            for host in (RENDER_HOST, "manual.example.com"):
+                response = client.get("/ready", headers={"Host": host})
+                assert response.status_code == 200
+                assert response.json() == {"success": True, "status": "ready", "database": "ok"}
+            assert len(calls) == 2
+            for host in ("unknown.example.com", "something-else.onrender.com"):
+                response = client.get("/ready", headers={"Host": host, "X-Forwarded-Host": RENDER_HOST})
+                assert response.status_code == 400
+                assert response.json() == {"detail": "Invalid host."}
+            assert len(calls) == 2
+    finally:
+        app.middleware_stack = None
+
+
+@pytest.mark.parametrize("port,expected", [(None, "8000"), ("10000", "10000"), ("8123", "8123")])
+def test_server_launch_consumes_port_without_binding(monkeypatch, port, expected):
+    from deploy.render.runtime import server_command
+    monkeypatch.delenv("PORT", raising=False)
+    if port is not None:
+        monkeypatch.setenv("PORT", port)
+    command = server_command()
+    assert command[command.index("--host") + 1] == "0.0.0.0"
+    assert command[command.index("--port") + 1] == expected
+    assert "--no-proxy-headers" in command
+
+
+@pytest.mark.parametrize("port", ["", "abc", "10000/path", " 10000", "80", "65536", "-1"])
+def test_server_port_rejects_invalid_values(monkeypatch, port):
+    from deploy.render.runtime import server_command
+    monkeypatch.setenv("PORT", port)
+    with pytest.raises(ValueError, match="unprivileged TCP port"):
+        server_command()
+
+
+@pytest.mark.parametrize("render", [False, True])
+def test_default_container_launch_selects_strict_render_configuration(monkeypatch, render):
+    from deploy.render import runtime
+    calls = []
+    monkeypatch.setattr(runtime.sys, "argv", ["runtime.py", "container"])
+    monkeypatch.delenv("RENDER_EXTERNAL_HOSTNAME", raising=False)
+    monkeypatch.setenv("RENDER", "true" if render else "false")
+    monkeypatch.setenv("PORT", "10000" if render else "8000")
+    monkeypatch.setattr(runtime, "configure", lambda: calls.append("configure"))
+    monkeypatch.setattr(runtime.os, "execv", lambda executable, command: calls.append(command))
+    runtime.main()
+    assert ("configure" in calls) is render
+    assert calls[-1] == runtime.server_command()
+
+
 def test_render_database_driver_and_internal_tls_preserve_encoded_identity():
     url = make_url(database_url("postgresql://fixture:p%40ssword%25synthetic@dpg-fixture/leadforge_stage?application_name=fixture", "internal"))
     assert url.drivername == "postgresql+psycopg"

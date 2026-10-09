@@ -89,7 +89,8 @@ c.close()
         driver(connect+assertions)
         seeded=driver("from deploy.render.runtime import configure;configure()\nfrom deploy.staging.seed import seed\nimport os\nseed(os.environ['LEADFORGE_RENDER_QA_PASSWORD'])","app",{"LEADFORGE_RENDER_QA_PASSWORD":passwords["qa"]})
         variables={**common,"DATABASE_URL":"postgresql://leadforge_stage_app:"+passwords["app"]+"@"+project+"-pg/leadforge_stage"}
-        launch(project+"-backend",project+":backend",["--network-alias","backend",*[arg for key in variables for arg in ("-e",key)]],["python","deploy/render/runtime.py","start"],variables)
+        # Exercise image default CMD, the path that previously bypassed the adapter.
+        launch(project+"-backend",project+":backend",["--network-alias","backend",*[arg for key in variables for arg in ("-e",key)]],extra=variables)
         frontend_vars={"LEADFORGE_RENDER":"true","PORT":"10000","RENDER_EXTERNAL_HOSTNAME":"frontend-fixture.onrender.com","LEADFORGE_RENDER_BACKEND_ORIGIN":"https://backend-fixture.onrender.com"}
         launch(project+"-frontend",project+":frontend",["--network-alias","frontend",*[arg for key in frontend_vars for arg in ("-e",key)],
             "--mount",f"type=bind,source={output/'backend'/'fullchain.pem'},target=/etc/ssl/certs/ca-certificates.crt,readonly"],extra=frontend_vars)
@@ -103,6 +104,21 @@ c.close()
         probe="import ssl,urllib.request,time\nc=ssl.create_default_context(cadata="+repr(ca)+")\n"
         probe+="for i in range(45):\n try:\n  r=urllib.request.urlopen('https://frontend-fixture.onrender.com/ready',context=c,timeout=8);assert r.status==200;break\n except Exception:\n  time.sleep(2)\nelse:raise AssertionError('Proxy readiness failed')\n"
         driver(probe)
+        driver("""import urllib.request,urllib.error
+for host,expected in [('backend-fixture.onrender.com',200),('unknown.example.com',400),('something-else.onrender.com',400)]:
+    request=urllib.request.Request('http://backend:10000/ready',headers={'Host':host,'X-Forwarded-Host':'backend-fixture.onrender.com'})
+    try:
+        response=urllib.request.urlopen(request,timeout=8)
+    except urllib.error.HTTPError as error:
+        response=error
+    assert response.status==expected
+print('PASS originless exact Render Host readiness and unknown/sibling/forwarded-host rejection')
+""")
+        # Uvicorn diagnostics are deliberately redacted by the structured logger.
+        run(['docker','exec',project+'-backend','python','-c',
+            "from pathlib import Path; args=Path('/proc/1/cmdline').read_bytes().split(b'\\0'); "
+            "assert args[args.index(b'--host')+1]==b'0.0.0.0'; "
+            "assert args[args.index(b'--port')+1]==b'10000'; print('PASS actual PID 1 binds 0.0.0.0:10000')"])
         # Reuse canonical HTTPS tenant/CSRF/mock/CSV smoke, with an explicit local trust file.
         fixture=json.loads(seeded.stdout.strip().splitlines()[-1])["fixtures"]
         code="import ssl,json,os\nfrom scripts.staging_smoke import smoke\ncontext=ssl.create_default_context(cadata="+repr(ca)+")\nprint(json.dumps(smoke('frontend-fixture.onrender.com',"+repr(fixture)+",os.environ['LEADFORGE_RENDER_QA_PASSWORD'],context=context)))\n"
