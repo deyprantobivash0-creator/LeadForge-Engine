@@ -62,6 +62,16 @@ evidence. Explicit COPY packages only required adapter/shared seed code.
 
 ## Environment inventory
 
+Startup failures before Uvicorn are reported as `Render startup rejected:` with
+fixed safe categories and canonical field names. Configuration values, DB URLs,
+credentials, exception context and tracebacks are withheld. CORS_ORIGINS and
+TRUSTED_HOSTS are comma-separated strings, not JSON arrays: origins include HTTPS;
+trusted hosts contain exact DNS names without scheme/port/path. Internal database
+TLS requires `sslmode=require` (added automatically when absent); a conflicting
+sslmode fails closed. See [startup diagnostic evidence](STEP_5H_B_STARTUP_DIAGNOSTIC.md).
+The listed canonical Render inputs pass isolated local validation with synthetic
+credentials. A pre-Uvicorn exit alone does not establish a schema/privilege failure.
+
 | Names / value policy | Class | Where / visibility |
 | --- | --- | --- |
 | ENVIRONMENT=production; LEADFORGE_STAGING=true; AI_PROVIDER=mock | SERVER CONFIG | Backend/operator; no real provider keys |

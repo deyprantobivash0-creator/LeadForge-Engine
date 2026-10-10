@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+from backend.core.config_diagnostics import ConfigurationError
 
 
 def secret_value(value: SecretStr | str) -> str:
@@ -176,14 +177,7 @@ def load_settings() -> Settings:
     try:
         return Settings(_env_file=os.environ.get("LEADFORGE_ENV_FILE") or None)
     except Exception as exc:
-        # Import/startup errors reveal keys and fixed validator text, never sources.
-        if isinstance(exc, ValidationError):
-            messages = "; ".join(f"{'.'.join(map(str, e['loc'])) or 'configuration'}: {e['msg']}" for e in exc.errors(include_input=False))
-        elif isinstance(exc, ValueError) and str(exc).startswith("LEADFORGE_ENV_FILE"):
-            messages = str(exc)
-        else:
-            messages = "configuration source could not be loaded; check externally supplied keys"
-        raise RuntimeError(f"LeadForge configuration rejected: {messages}") from None
+        raise ConfigurationError(exc, Settings.model_fields) from None
 
 
 settings = load_settings()

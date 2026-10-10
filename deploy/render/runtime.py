@@ -9,6 +9,47 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+_REQUIRED_STAGING = {"ENVIRONMENT": "production", "AI_PROVIDER": "mock", "LEADFORGE_STAGING": "true"}
+_FORBIDDEN_INTEGRATIONS = ("GEMINI_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY", "HUBSPOT_ACCESS_TOKEN")
+_SAFE_OPERATION_ERRORS = frozenset({
+    *(f"{key} must be {value} for Render mock staging" for key, value in _REQUIRED_STAGING.items()),
+    *(f"{key} must be absent in Render mock staging" for key in _FORBIDDEN_INTEGRATIONS),
+    "LEADFORGE_ENV_FILE must be absent in Render mock staging",
+    "Render DATABASE_URL/TLS configuration rejected",
+    "PORT must be an unprivileged TCP port",
+    "Unsupported Render arguments",
+    "Unsupported Render operation",
+    "Operator migration requires external verified TLS",
+    "Migration required-head gate failed",
+    "Explicit synthetic seed confirmation required",
+    "Strong externally supplied synthetic QA password required",
+})
+
+
+def startup_diagnostic(exc):
+    # Import lazily: missing/broken dependencies must also get a fixed diagnostic.
+    try:
+        from backend.core.config_diagnostics import ConfigurationError, configuration_diagnostic
+        from pydantic import ValidationError
+        if isinstance(exc, ConfigurationError):
+            return "configuration validation failed: " + exc.diagnostic
+        if isinstance(exc, ValidationError):
+            return "configuration validation failed: " + configuration_diagnostic(exc)
+    except ImportError:
+        pass
+    if type(exc) is ValueError:
+        safe = next((known for known in _SAFE_OPERATION_ERRORS if str(exc) == known), None)
+        if safe:
+            return "ValueError: " + safe
+    if isinstance(exc, ImportError):
+        return "ImportError: required runtime dependency could not be loaded"
+    if isinstance(exc, OSError):
+        return "OSError: process launch or local resource access failed"
+    if isinstance(exc, subprocess.CalledProcessError):
+        return "CalledProcessError: requested operator subprocess failed"
+    return "Exception: unexpected startup failure; exception details withheld"
+
+
 def database_url(raw, mode, ca=None):
     from sqlalchemy.engine import make_url
     try:
@@ -32,11 +73,14 @@ def database_url(raw, mode, ca=None):
 
 
 def configure():
-    if (os.environ.get("ENVIRONMENT") != "production" or os.environ.get("AI_PROVIDER") != "mock"
-            or os.environ.get("LEADFORGE_STAGING") != "true" or os.environ.get("LEADFORGE_ENV_FILE")):
-        raise ValueError("Render requires strict production settings and explicit synthetic mock staging")
-    if any(os.environ.get(key) for key in ("GEMINI_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY", "HUBSPOT_ACCESS_TOKEN")):
-        raise ValueError("Real integration credentials are forbidden in Render mock staging")
+    for key, required in _REQUIRED_STAGING.items():
+        if os.environ.get(key) != required:
+            raise ValueError(f"{key} must be {required} for Render mock staging")
+    if os.environ.get("LEADFORGE_ENV_FILE"):
+        raise ValueError("LEADFORGE_ENV_FILE must be absent in Render mock staging")
+    for key in _FORBIDDEN_INTEGRATIONS:
+        if os.environ.get(key):
+            raise ValueError(f"{key} must be absent in Render mock staging")
     os.environ["DATABASE_URL"] = database_url(os.environ.get("DATABASE_URL", ""),
         os.environ.get("LEADFORGE_RENDER_DB_TLS", "internal"), os.environ.get("LEADFORGE_RENDER_DB_CA"))
     from backend.core.config import settings
@@ -83,9 +127,14 @@ def main():
         raise ValueError("Unsupported Render operation")
 
 
-if __name__ == "__main__":
+def run_cli():
     try:
         main()
-    except Exception:
-        print("Render operation rejected; check scoped configuration, TLS, privileges and schema", file=sys.stderr)
-        raise SystemExit(1) from None
+    except Exception as exc:
+        print("Render startup rejected: " + startup_diagnostic(exc), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_cli())
