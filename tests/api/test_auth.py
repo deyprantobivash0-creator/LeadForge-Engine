@@ -13,7 +13,7 @@ from backend.core.rate_limit import limiter
 from backend.database.session import SessionLocal, engine
 from backend.main import app
 from backend.models import AuthSession, OrganizationMembership, User
-from backend.services.authentication_service import AuthenticationService, utc_now
+from backend.services.authentication_service import AuthenticationFailed, AuthenticationService, utc_now
 
 
 EMAIL = "auth@example.com"
@@ -176,7 +176,7 @@ def test_application_sqlite_foreign_keys_and_auth_transaction(client):
         db.rollback()
         assert db.scalar(select(func.count()).select_from(AuthSession)) == 0
         ghost = User(id=999999, email="ghost@example.com", password_hash="unused", is_active=True)
-        with pytest.raises(IntegrityError):
+        with pytest.raises(AuthenticationFailed):
             AuthenticationService(db).create_session(ghost)
         assert db.scalar(select(func.count()).select_from(AuthSession)) == 0
 

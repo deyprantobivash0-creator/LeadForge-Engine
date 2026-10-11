@@ -38,7 +38,7 @@ async def validation_exception_handler(
     # Validator context can contain exception objects that are not JSON-safe.
     details = [{key: value for key, value in error.items() if key != "ctx"}
                for error in exc.errors()]
-    if request.url.path == "/api/auth/login":
+    if request.url.path in {"/api/auth/login", "/api/auth/change-password"}:
         # Validation details must not echo a submitted password or request body.
         details = [
             {key: value for key, value in error.items() if key not in {"input", "ctx"}}

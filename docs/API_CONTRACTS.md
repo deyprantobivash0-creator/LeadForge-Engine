@@ -41,7 +41,31 @@ requires a configured key and model; Ollama requires a configured host and
 model. DeepSeek is unavailable even if a key exists. The endpoint makes no
 provider network call. CSV import and Reports are available; CRM sync and
 automation integrations are not available in this release. Settings offers no
-API to change providers, connect integrations, or alter account credentials.
+API to change providers or connect integrations. Account password changes use
+the authenticated auth endpoint below.
+
+## Change password
+
+`POST /api/auth/change-password` accepts only `current_password` and
+`new_password` strings (1–1024 characters at the transport boundary). It requires
+an active authenticated session and the existing session-bound CSRF header and
+cookie. No organization selection is needed: only the session's own user is
+updated; user/email/organization selectors are rejected as extra fields.
+
+The service verifies the current credential with the existing Argon2id helper.
+New passwords require 15–1024 characters, no NUL, and must differ from the
+current credential. There are no composition rules. Existing login credentials
+remain compatible. HTTP 200 returns only
+`{"message":"Password changed successfully."}` with `Cache-Control: no-store`.
+Password replacement and revocation of every other active user session share
+one transaction; the current session/cookies remain valid. A conditional write
+rejects stale credentials with 409. Incorrect current password and invalid new
+password return safe 422 domain errors; unauthenticated/inactive users get 401,
+invalid CSRF gets 403, and the separate per-account budget returns 429 with
+Retry-After after five attempts per 300 seconds. The budget reuses the bounded
+process-local limiter and has the same restart/multi-worker limits as login.
+Validation responses redact submitted credentials. Settings confirmation stays
+client-side; successful submission clears all three password fields.
 
 ## Reports v2: historical analysis activity (Step 4E)
 

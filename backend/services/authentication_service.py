@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
-from backend.core.exceptions import LeadForgeException
-from backend.core.passwords import hash_password, verify_password, needs_rehash
+from backend.core.exceptions import LeadForgeException, ValidationException
+from backend.core.passwords import hash_password, verify_password, needs_rehash, validate_new_password
 from backend.core.session_tokens import generate_session_token, hash_session_token, verify_session_token
 from backend.models.auth_session import AuthSession
 from backend.models.user import User
@@ -64,25 +64,24 @@ class AuthenticationService:
         valid_password = verify_password(password, user.password_hash if user else _DUMMY_PASSWORD_HASH)
         if not user or not valid_password or not user.is_active:
             raise AuthenticationFailed()
-        if needs_rehash(user.password_hash):
-            # Commit the upgrade together with issuance of the new session.
-            user.password_hash = hash_password(password)
         return user
 
-    def create_session(self, user: User) -> IssuedSession:
-        if not user.is_active:
-            raise AuthenticationFailed()
-        raw_token = generate_session_token()
-        csrf_token = generate_session_token()
-        self.repository.create_session(
-            AuthSession(
-                user_id=user.id,
-                token_hash=hash_session_token(raw_token),
-                csrf_token_hash=hash_session_token(csrf_token),
-                expires_at=utc_now() + timedelta(seconds=settings.SESSION_TTL_SECONDS),
-            )
-        )
+    def create_session(self, user: User, *, replacement_hash: str | None = None) -> IssuedSession:
         try:
+            if not user.is_active or not self.repository.guard_session_issuance(
+                user.id, user.password_hash, replacement_hash,
+            ):
+                raise AuthenticationFailed()
+            raw_token = generate_session_token()
+            csrf_token = generate_session_token()
+            self.repository.create_session(
+                AuthSession(
+                    user_id=user.id,
+                    token_hash=hash_session_token(raw_token),
+                    csrf_token_hash=hash_session_token(csrf_token),
+                    expires_at=utc_now() + timedelta(seconds=settings.SESSION_TTL_SECONDS),
+                )
+            )
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -91,8 +90,15 @@ class AuthenticationService:
 
     @operation("auth.login")
     def login(self, email: str, password: str) -> IssuedSession:
-        user = self.authenticate_user(email, password)
-        return self.create_session(user)
+        try:
+            user = self.authenticate_user(email, password)
+            # Do not dirty the ORM User before the conditional credential guard:
+            # a stale automatic hash upgrade must never overwrite a password change.
+            replacement_hash = hash_password(password) if needs_rehash(user.password_hash) else None
+            return self.create_session(user, replacement_hash=replacement_hash)
+        except Exception:
+            self.db.rollback()
+            raise
 
     @operation("auth.session", success=False)
     def resolve_session(self, raw_token: str | None) -> AuthSession:
@@ -117,6 +123,28 @@ class AuthenticationService:
             or not verify_session_token(cookie_token, auth_session.csrf_token_hash)
         ):
             raise CsrfRejected()
+
+    @operation("auth.change_password")
+    def change_password(self, auth_session: AuthSession, current_password: str, new_password: str) -> None:
+        try:
+            user = auth_session.user
+            now = utc_now()
+            if not user.is_active or auth_session.revoked_at is not None or auth_session.expires_at <= now:
+                raise SessionRequired()
+            old_hash = user.password_hash
+            if not verify_password(current_password, old_hash):
+                raise ValidationException("Current password is incorrect.", error_code="CURRENT_PASSWORD_INCORRECT")
+            validate_new_password(new_password)
+            if verify_password(new_password, old_hash):
+                raise ValidationException("New password must differ from current password.")
+            if not self.repository.replace_password(user.id, auth_session.id, old_hash, hash_password(new_password), now):
+                raise LeadForgeException("Account credentials changed. Sign in again before retrying.",
+                                         status_code=409, error_code="CREDENTIALS_CHANGED")
+            self.repository.revoke_other_sessions(user.id, auth_session.id, now)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
 
     @operation("auth.logout")
     def revoke_session(self, auth_session: AuthSession) -> None:

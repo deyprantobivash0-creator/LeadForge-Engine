@@ -6,15 +6,30 @@ from sqlalchemy.orm import Session
 from backend.api.dependencies.auth import get_current_user, require_csrf
 from backend.core.config import settings
 from backend.core.exceptions import LeadForgeException
-from backend.core.rate_limit import limiter
+from backend.core.rate_limit import limiter, password_change_limiter
 from backend.database.dependencies import get_db
 from backend.models.auth_session import AuthSession
 from backend.models.user import User
-from backend.schemas.auth_schema import LoginRequest, LoginResponse, LogoutResponse, UserResponse
+from backend.schemas.auth_schema import (LoginRequest, LoginResponse, LogoutResponse, UserResponse,
+                                        ChangePasswordRequest, ChangePasswordResponse)
 from backend.services.authentication_service import AuthenticationService
 
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+
+def _password_change_budget(auth_session: AuthSession = Depends(require_csrf)) -> AuthSession:
+    password_change_limiter.check_key(str(auth_session.user_id))
+    return auth_session
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+def change_password(payload: ChangePasswordRequest, response: Response,
+                    auth_session: AuthSession = Depends(_password_change_budget),
+                    db: Session = Depends(get_db)):
+    AuthenticationService(db).change_password(auth_session, payload.current_password, payload.new_password)
+    response.headers["Cache-Control"] = "no-store"
+    return ChangePasswordResponse()
 
 
 def _validate_login_origin(request: Request) -> None:

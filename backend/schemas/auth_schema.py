@@ -23,3 +23,13 @@ class LoginResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     success: bool
+
+
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    current_password: str = Field(min_length=1, max_length=1024, repr=False)
+    new_password: str = Field(min_length=1, max_length=1024, repr=False)
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str = "Password changed successfully."

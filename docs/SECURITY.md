@@ -25,8 +25,8 @@ backup recovery and full production infrastructure are not proven by these check
 
 Passwords use Argon2id: 64 MiB memory, three iterations, parallelism four,
 16-byte random salt and 32-byte hash. Login retains compatibility with existing
-passwords: 1–1024 characters, email at most 254. No password reset, registration,
-change-password or account-lockout workflow is added. Successful login upgrades
+passwords: 1–1024 characters, email at most 254. Password reset, registration,
+and account lockout remain unavailable. Successful login upgrades
 older hash parameters in the same commit as issuance. Failed/unknown/inactive
 accounts share a generic 401; unknown accounts perform a dummy hash verification.
 This reduces enumeration, without claiming perfect constant-time HTTP behavior.
@@ -37,7 +37,17 @@ caller-provided session IDs. The default absolute expiry is seven days, with no
 sliding extension. Logout revokes the current session server-side and clears both
 cookies; expired/revoked sessions and disabled users fail. Old independent sessions
 remain valid until their own expiry/revocation. Session cleanup and account-wide
-revocation remain future account operations.
+revocation outside password changes remain future account operations.
+
+Authenticated password changes verify the current credential and enforce a
+centralized 15–1024 character new-password policy without composition rules.
+NUL and reuse of the current password are rejected. Password replacement and
+revocation of other active sessions are atomic; the current session is preserved.
+Only the session's own user can be updated. A conditional password write rejects
+stale credentials. The separate budget allows five attempts per account per
+300 seconds, using the existing process-local bounded limiter; it does not
+consume login budget. Credential values are absent from validation responses,
+operation logs, browser storage, and URLs. See [API contract](API_CONTRACTS.md#change-password).
 
 Cookies are host-only with path `/`, SameSite Lax (or Strict), Max-Age matching
 expiry; session is HttpOnly, CSRF cookie is browser-readable. Production enforces
@@ -46,7 +56,7 @@ IDs are absent from localStorage/sessionStorage; localStorage holds only a per-u
 workspace preference that the server reauthorizes. Do not put tokens in URLs.
 
 Every authenticated write requires the current session's CSRF header and cookie:
-lead create/lifecycle/process, import preview/confirm and logout. Both must hash to
+lead create/lifecycle/process, import preview/confirm, logout and password changes. Both must hash to
 the session's CSRF digest, preventing cross-session substitution. Login validates
 an Origin when supplied; missing Origin is allowed for non-browser clients. CSRF
 and Origin checks supplement authorization rather than grant workspace access.

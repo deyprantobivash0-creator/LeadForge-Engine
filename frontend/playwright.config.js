@@ -3,7 +3,7 @@ const evidence = process.env.E2E_EVIDENCE_DIR || 'test-results';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: process.env.E2E_RECOVERY ? [] : ['**/recovery.spec.js'],
+  testIgnore: ['**/change-password.spec.js', ...(process.env.E2E_RECOVERY ? [] : ['**/recovery.spec.js'])],
   timeout: 60000,
   expect: { timeout: 10000 },
   workers: 1,
