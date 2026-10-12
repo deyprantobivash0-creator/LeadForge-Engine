@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from backend.database.transactions import service_transaction
+from backend.schemas.execution_principal import ExecutionPrincipal
+from backend.services.execution_identity import require_tenant_identity, execution_event
 
 from backend.models.lead import Lead
 from backend.repositories.lead_repository import LeadRepository
@@ -11,6 +13,13 @@ class LeadService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = LeadRepository(db)
+
+    def create_lead_for_principal(self, principal: ExecutionPrincipal, *, company: str,
+                                  email: str, source: str, organization_id: int) -> Lead:
+        with service_transaction(self.db):
+            require_tenant_identity(principal, organization_id)
+            execution_event("execution.lead.create", principal)
+            return self.create_lead(company, email, source, organization_id)
 
     def create_lead(
         self,

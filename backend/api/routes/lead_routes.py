@@ -4,6 +4,9 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
+from backend.api.dependencies.execution_principal import require_user_principal
+from backend.schemas.execution_principal import ExecutionPrincipal
+
 from backend.api.dependencies.organization import (
     AuthorizedOrganizationContext,
     get_current_organization,
@@ -67,16 +70,17 @@ def _list_response(items, total: int, page: int, page_size: int):
 def create_lead(
     lead: LeadCreate,
     db: Session = Depends(get_db),
-    context: AuthorizedOrganizationContext = Depends(require_authorized_csrf),
+    principal: ExecutionPrincipal = Depends(require_user_principal),
 ):
     service = LeadService(db)
 
     try:
-        return service.create_lead(
+        return service.create_lead_for_principal(
+            principal,
             company=lead.company,
             email=lead.email,
             source=lead.source,
-            organization_id=context.organization.id,
+            organization_id=principal.organization_id,
         )
 
     except ValueError as exc:
@@ -200,14 +204,15 @@ def update_lead_lifecycle(
     lead_id: LeadID,
     payload: LeadLifecycleUpdate,
     db: Session = Depends(get_db),
-    context: AuthorizedOrganizationContext = Depends(require_authorized_csrf),
+    principal: ExecutionPrincipal = Depends(require_user_principal),
 ):
     service = LeadLifecycleService(db)
 
     try:
-        result = service.update_lifecycle(
+        result = service.update_lifecycle_for_principal(
+            principal,
             lead_id=lead_id,
-            organization_id=context.organization.id,
+            organization_id=principal.organization_id,
             status=payload.status,
             notes=payload.notes,
             last_contacted=payload.last_contacted,
