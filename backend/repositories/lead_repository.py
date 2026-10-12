@@ -13,8 +13,7 @@ class LeadRepository:
 
     def create_lead(self, lead: Lead) -> Lead:
         self.db.add(lead)
-        self.db.commit()
-        self.db.refresh(lead)
+        self.db.flush()
         return lead
 
     def get_all_leads(
@@ -147,8 +146,7 @@ class LeadRepository:
 
         lead.status = status
 
-        self.db.commit()
-        self.db.refresh(lead)
+        self.db.flush()
 
         return lead
 
@@ -182,8 +180,7 @@ class LeadRepository:
         if next_follow_up is not None:
             lead.next_follow_up = next_follow_up
 
-        self.db.commit()
-        self.db.refresh(lead)
+        self.db.flush()
 
         return lead
 

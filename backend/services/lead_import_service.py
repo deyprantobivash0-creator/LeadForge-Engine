@@ -13,6 +13,8 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.database.transactions import service_transaction
+
 from backend.repositories.lead_import_repository import LeadImportRepository
 from backend.schemas.import_schema import ImportPreview, ImportResult, ImportRow, ImportSummary
 from backend.schemas.lead_schema import LeadCreate
@@ -138,6 +140,11 @@ class LeadImportService:
     @operation("import.confirm")
     def confirm(self, content: bytes, token: str, organization_id: int,
                 user_id: int, session_key: str) -> ImportResult:
+        with service_transaction(self.db):
+            return self._confirm(content, token, organization_id, user_id, session_key)
+
+    def _confirm(self, content: bytes, token: str, organization_id: int,
+                 user_id: int, session_key: str) -> ImportResult:
         try:
             payload, signature = token.split(".", 1)
             if not hmac.compare_digest(signature, self._signature(payload, session_key)):
@@ -152,28 +159,29 @@ class LeadImportService:
         rows, _, summary = self._evaluate(content, organization_id)
         imported = 0
         raced = 0
-        try:
-            for row in rows:
-                if row.status != "ready":
-                    continue
-                try:
-                    with self.db.begin_nested():
-                        self.repository.add(organization_id, row.company, row.email, row.source)
-                    imported += 1
-                except IntegrityError as exc:
-                    # Only the tenant/email uniqueness conflict is a normal duplicate.
-                    if self.db.get_bind().dialect.name == "postgresql":
-                        diagnostic = getattr(exc.orig, "diag", None)
-                        if (getattr(exc.orig, "sqlstate", None) != "23505"
-                                or getattr(diagnostic, "constraint_name", None)
-                                != "uq_leads_organization_email"):
-                            raise
-                    elif row.email not in self.repository.existing_emails(organization_id, {row.email}):
+        if self.db.get_bind().dialect.name == "sqlite":
+            connection = self.db.connection()
+            # sqlite3 legacy mode does not BEGIN for SELECT/SAVEPOINT. A real
+            # outer transaction must precede the first releasable row savepoint.
+            if not connection.connection.driver_connection.in_transaction:
+                connection.exec_driver_sql("BEGIN")
+        for row in rows:
+            if row.status != "ready":
+                continue
+            try:
+                with self.db.begin_nested():
+                    self.repository.add(organization_id, row.company, row.email, row.source)
+                imported += 1
+            except IntegrityError as exc:
+                # Only the tenant/email uniqueness conflict is a normal duplicate.
+                if self.db.get_bind().dialect.name == "postgresql":
+                    diagnostic = getattr(exc.orig, "diag", None)
+                    if (getattr(exc.orig, "sqlstate", None) != "23505"
+                            or getattr(diagnostic, "constraint_name", None)
+                            != "uq_leads_organization_email"):
                         raise
-                    raced += 1
-            self.db.commit()
-        except Exception:
-            self.db.rollback()
-            raise
+                elif row.email not in self.repository.existing_emails(organization_id, {row.email}):
+                    raise
+                raced += 1
         return ImportResult(total=summary.total, imported=imported,
                             duplicates=summary.duplicates + raced, invalid=summary.invalid)

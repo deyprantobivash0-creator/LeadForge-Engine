@@ -1,12 +1,15 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from backend.database.transactions import service_transaction
+
 from backend.models.lead import Lead
 from backend.repositories.lead_repository import LeadRepository
 
 
 class LeadService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = LeadRepository(db)
 
     def create_lead(
@@ -17,30 +20,20 @@ class LeadService:
         organization_id: int,
     ) -> Lead:
 
-        existing = self.repository.get_lead_by_email(
-            email=email,
-            organization_id=organization_id,
-        )
-
-        if existing:
-            raise ValueError(
-                "A lead with this email already exists "
-                "in this organization."
-            )
-
-        lead = Lead(
-            company=company,
-            email=email,
-            source=source,
-            organization_id=organization_id,
-        )
-
         try:
-            return self.repository.create_lead(lead)
+            with service_transaction(self.db):
+                existing = self.repository.get_lead_by_email(
+                    email=email, organization_id=organization_id,
+                )
+                if existing:
+                    raise ValueError("A lead with this email already exists in this organization.")
+                lead = Lead(company=company, email=email, source=source,
+                            organization_id=organization_id)
+                self.repository.create_lead(lead)
+            return lead
         except IntegrityError as exc:
             # The advisory read can race. Classify only this exact uniqueness
-            # constraint after restoring the operation's session to usable state.
-            self.repository.db.rollback()
+            # constraint; the owning scope rolls back the entire operation.
             if self.repository.db.get_bind().dialect.name == "postgresql":
                 diagnostic = getattr(exc.orig, "diag", None)
                 duplicate = (

@@ -2,6 +2,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from backend.database.transactions import service_transaction
+
 from backend.repositories.lead_repository import LeadRepository
 from backend.schemas.lead_contract import LeadLifecycle
 
@@ -11,6 +13,7 @@ class LeadLifecycleService:
     ALLOWED_STATUSES = {item.value for item in LeadLifecycle}
 
     def __init__(self, db: Session):
+        self.db = db
         self.repository = LeadRepository(db)
 
     def update_status(
@@ -20,16 +23,12 @@ class LeadLifecycleService:
         status: str,
     ):
 
-        if status not in self.ALLOWED_STATUSES:
-            raise ValueError(
-                f"Invalid status: {status}"
+        with service_transaction(self.db):
+            if status not in self.ALLOWED_STATUSES:
+                raise ValueError(f"Invalid status: {status}")
+            return self.repository.update_status(
+                lead_id=lead_id, organization_id=organization_id, status=status,
             )
-
-        return self.repository.update_status(
-            lead_id=lead_id,
-            organization_id=organization_id,
-            status=status,
-        )
 
     def update_lifecycle(
         self,
@@ -41,19 +40,13 @@ class LeadLifecycleService:
         next_follow_up: datetime | None = None,
     ):
 
-        if status is not None and status not in self.ALLOWED_STATUSES:
-            raise ValueError(
-                f"Invalid status: {status}"
+        with service_transaction(self.db):
+            if status is not None and status not in self.ALLOWED_STATUSES:
+                raise ValueError(f"Invalid status: {status}")
+            return self.repository.update_lifecycle(
+                lead_id=lead_id, organization_id=organization_id, status=status,
+                notes=notes, last_contacted=last_contacted, next_follow_up=next_follow_up,
             )
-
-        return self.repository.update_lifecycle(
-            lead_id=lead_id,
-            organization_id=organization_id,
-            status=status,
-            notes=notes,
-            last_contacted=last_contacted,
-            next_follow_up=next_follow_up,
-        )
 
     def get_follow_ups(
         self,
