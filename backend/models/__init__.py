@@ -5,6 +5,7 @@ from backend.models.ingestion import IngestionJob
 from backend.models.user import User
 from backend.models.organization_membership import OrganizationMembership
 from backend.models.auth_session import AuthSession
+from backend.models.audit_event import AuditEvent
 
 __all__ = [
     "Organization",
@@ -14,4 +15,5 @@ __all__ = [
     "User",
     "OrganizationMembership",
     "AuthSession",
+    "AuditEvent",
 ]
