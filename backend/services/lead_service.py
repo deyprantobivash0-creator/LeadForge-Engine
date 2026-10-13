@@ -4,6 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from backend.database.transactions import service_transaction
 from backend.schemas.execution_principal import ExecutionPrincipal
 from backend.services.execution_identity import require_tenant_identity, execution_event
+from backend.schemas.action_permission import ActionPermission, MachineAuthorizationContext
+from backend.services.action_permission_service import ActionPermissionService
 
 from backend.models.lead import Lead
 from backend.repositories.lead_repository import LeadRepository
@@ -14,31 +16,18 @@ class LeadService:
         self.db = db
         self.repository = LeadRepository(db)
 
-    def create_lead_for_principal(self, principal: ExecutionPrincipal, *, company: str,
-                                  email: str, source: str, organization_id: int) -> Lead:
-        with service_transaction(self.db):
-            require_tenant_identity(principal, organization_id)
-            execution_event("execution.lead.create", principal)
-            return self.create_lead(company, email, source, organization_id)
-
     def create_lead(
-        self,
-        company: str,
-        email: str,
-        source: str,
-        organization_id: int,
+        self, principal: ExecutionPrincipal, *, company: str, email: str,
+        source: str, organization_id: int,
+        machine_context: MachineAuthorizationContext | None = None,
     ) -> Lead:
-
         try:
             with service_transaction(self.db):
-                existing = self.repository.get_lead_by_email(
-                    email=email, organization_id=organization_id,
-                )
-                if existing:
-                    raise ValueError("A lead with this email already exists in this organization.")
-                lead = Lead(company=company, email=email, source=source,
-                            organization_id=organization_id)
-                self.repository.create_lead(lead)
+                require_tenant_identity(principal, organization_id)
+                ActionPermissionService(self.db).require(principal, ActionPermission.LEAD_CREATE,
+                                                         organization_id, machine_context)
+                execution_event("execution.lead.create", principal)
+                lead = self._create_lead_internal(company, email, source, organization_id)
             return lead
         except IntegrityError as exc:
             # The advisory read can race. Classify only this exact uniqueness
@@ -60,6 +49,15 @@ class LeadService:
             raise ValueError(
                 "A lead with this email already exists in this organization."
             ) from exc
+
+    def _create_lead_internal(self, company, email, source, organization_id) -> Lead:
+        """Mutation detail for an authorized command; caller owns its transaction."""
+        existing = self.repository.get_lead_by_email(email=email, organization_id=organization_id)
+        if existing:
+            raise ValueError("A lead with this email already exists in this organization.")
+        lead = Lead(company=company, email=email, source=source, organization_id=organization_id)
+        self.repository.create_lead(lead)
+        return lead
 
     def get_leads(
         self,

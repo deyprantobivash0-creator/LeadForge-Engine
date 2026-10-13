@@ -14,6 +14,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.database.transactions import service_transaction
+from backend.schemas.execution_principal import ExecutionPrincipal, PrincipalType
+from backend.schemas.action_permission import ActionPermission
+from backend.services.action_permission_service import ActionPermissionService
+from backend.services.execution_identity import require_tenant_identity
 
 from backend.repositories.lead_import_repository import LeadImportRepository
 from backend.schemas.import_schema import ImportPreview, ImportResult, ImportRow, ImportSummary
@@ -138,13 +142,21 @@ class LeadImportService:
                              preview_limit=PREVIEW_ROWS, ignored_headers=ignored)
 
     @operation("import.confirm")
-    def confirm(self, content: bytes, token: str, organization_id: int,
-                user_id: int, session_key: str) -> ImportResult:
+    def confirm(self, principal: ExecutionPrincipal, content: bytes, token: str,
+                organization_id: int, user_id: int, session_key: str) -> ImportResult:
         with service_transaction(self.db):
+            require_tenant_identity(principal, organization_id)
+            # This browser/session-bound operation is not machine ingestion.
+            if principal.principal_type != PrincipalType.USER or principal.actor_id != user_id:
+                raise ImportValidationError("Import identity mismatch.")
+            permissions = ActionPermissionService(self.db)
+            permissions.require(principal, ActionPermission.LEAD_IMPORT, organization_id)
+            permissions.require(principal, ActionPermission.LEAD_CREATE, organization_id)
             return self._confirm(content, token, organization_id, user_id, session_key)
 
     def _confirm(self, content: bytes, token: str, organization_id: int,
                  user_id: int, session_key: str) -> ImportResult:
+        """Mutation detail for an authorized command; caller owns its transaction."""
         try:
             payload, signature = token.split(".", 1)
             if not hmac.compare_digest(signature, self._signature(payload, session_key)):

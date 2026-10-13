@@ -17,7 +17,7 @@ FIELDS = {"method", "path", "status_code", "duration_ms", "organization_id", "us
           "lead_id", "analysis_id", "provider_name", "reason", "exception_type", "stack",
           "version", "database_dialect", "target_revision", "total", "ready", "imported",
           "duplicates", "invalid", "rows", "processing_status",
-          "principal_type", "actor_id", "correlation_id"}
+          "principal_type", "actor_id", "correlation_id", "permission", "permission_result"}
 
 
 def safe_stack(exc):

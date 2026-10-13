@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect, select
+from backend.schemas.execution_principal import ExecutionPrincipal
 
 
 @pytest.fixture
@@ -95,7 +96,8 @@ def test_direct_create_race_classifies_only_tenant_email_and_recovers_session(wo
     def create(_):
         with SessionLocal() as db:
             try:
-                LeadService(db).create_lead('Race Synthetic', 'direct-race@example.com', 'fixture', org_id)
+                LeadService(db).create_lead(ExecutionPrincipal.for_user(workspace['ids']['user_a'], org_id),
+                    company='Race Synthetic', email='direct-race@example.com', source='fixture', organization_id=org_id)
                 result = 'accepted'
             except ValueError as exc:
                 assert str(exc) == 'A lead with this email already exists in this organization.'
@@ -114,7 +116,8 @@ def test_direct_create_race_classifies_only_tenant_email_and_recovers_session(wo
     monkeypatch.setattr(LeadRepository, 'create_lead', invalid_create)
     with SessionLocal() as db:
         with pytest.raises(IntegrityError) as failure:
-            LeadService(db).create_lead('Invalid Synthetic', 'not-null@example.com', 'fixture', org_id)
+            LeadService(db).create_lead(ExecutionPrincipal.for_user(workspace['ids']['user_a'], org_id),
+                    company='Invalid Synthetic', email='not-null@example.com', source='fixture', organization_id=org_id)
         assert failure.value.orig.sqlstate == '23502'
         assert db.scalar(select(Lead.id).where(Lead.organization_id == org_id, Lead.email == 'not-null@example.com')) is None
 
@@ -340,7 +343,7 @@ def test_postgres_import_uniqueness_and_tenant_boundary(workspace, monkeypatch):
         with SessionLocal() as db:
             db.connection().exec_driver_sql("SET LOCAL lock_timeout = '10s'")
             db.connection().exec_driver_sql("SET LOCAL statement_timeout = '20s'")
-            return LeadImportService(db).confirm(contents[index], previews[index].token,
+            return LeadImportService(db).confirm(ExecutionPrincipal.for_user(user_id, org_id), contents[index], previews[index].token,
                                                  org_id, user_id, session_key)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -375,7 +378,7 @@ def test_postgres_import_uniqueness_and_tenant_boundary(workspace, monkeypatch):
         service = LeadImportService(db)
         preview = service.preview(preview_csv, org_id, user_id, session_key)
         with pytest.raises(IntegrityError) as error:
-            service.confirm(preview_csv, preview.token, org_id, user_id, session_key)
+            service.confirm(ExecutionPrincipal.for_user(user_id, org_id), preview_csv, preview.token, org_id, user_id, session_key)
         assert error.value.orig.sqlstate == "23502"
         assert db.scalar(select(Lead.id).where(
             Lead.organization_id == org_id, Lead.email == "beta-only@example.com"

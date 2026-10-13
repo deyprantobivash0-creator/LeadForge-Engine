@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.api.dependencies.auth import get_current_session
+from backend.api.dependencies.execution_principal import require_user_principal
+from backend.schemas.execution_principal import ExecutionPrincipal
 from backend.api.dependencies.organization import AuthorizedOrganizationContext, require_authorized_csrf
 from backend.database.dependencies import get_db
 from backend.models.auth_session import AuthSession
@@ -42,14 +44,15 @@ async def preview_import(
 async def confirm_import(
     request: Request,
     preview_token: str = Header(alias="X-Import-Preview-Token", min_length=1, max_length=512),
-    context: AuthorizedOrganizationContext = Depends(require_authorized_csrf),
+    principal: ExecutionPrincipal = Depends(require_user_principal),
     session: AuthSession = Depends(get_current_session),
     db: Session = Depends(get_db),
 ):
     try:
         return LeadImportService(db).confirm(
+            principal,
             await _read_csv(request), preview_token,
-            context.organization.id, context.user.id, session.csrf_token_hash,
+            principal.organization_id, principal.actor_id, session.csrf_token_hash,
         )
     except ImportValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

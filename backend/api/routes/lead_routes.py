@@ -75,7 +75,7 @@ def create_lead(
     service = LeadService(db)
 
     try:
-        return service.create_lead_for_principal(
+        return service.create_lead(
             principal,
             company=lead.company,
             email=lead.email,
@@ -209,7 +209,7 @@ def update_lead_lifecycle(
     service = LeadLifecycleService(db)
 
     try:
-        result = service.update_lifecycle_for_principal(
+        result = service.update_lifecycle(
             principal,
             lead_id=lead_id,
             organization_id=principal.organization_id,

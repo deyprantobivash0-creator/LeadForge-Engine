@@ -11,9 +11,10 @@ from backend.core.exceptions import LeadForgeException
 from backend.core.logger import JsonFormatter
 from backend.database.transactions import service_transaction
 from backend.schemas.execution_principal import ActorReference, ExecutionPrincipal, PrincipalType
+from backend.schemas.action_permission import ActionPermission, MachineAuthorizationContext
 from backend.services.lead_lifecycle_service import LeadLifecycleService
 from backend.services.lead_service import LeadService
-from tests.test_service_transactions import command_db, persisted_leads
+from tests.test_service_transactions import create, command_db, persisted_leads
 
 
 @pytest.mark.parametrize("factory,actor", [
@@ -95,12 +96,15 @@ def test_serialization_rejects_transport_secrets_and_permission_claims(extra):
 
 def test_worker_calls_services_without_http_and_nested_identity_is_preserved(command_db, caplog):
     principal = ExecutionPrincipal.for_workflow("run-1", 1, correlation_id="worker-chain")
+    authority = MachineAuthorizationContext(principal, frozenset({ActionPermission.LEAD_CREATE,
+                                                                ActionPermission.LEAD_LIFECYCLE_CHANGE}))
     with caplog.at_level(logging.INFO):
         with service_transaction(command_db):
-            lead = LeadService(command_db).create_lead_for_principal(
-                principal, organization_id=1, company="Synthetic", email="worker@example.com", source="test")
-            LeadLifecycleService(command_db).update_lifecycle_for_principal(
-                principal, organization_id=1, lead_id=lead.id, status="Contacted")
+            lead = LeadService(command_db).create_lead(
+                principal, organization_id=1, company="Synthetic", email="worker@example.com", source="test",
+                machine_context=authority)
+            LeadLifecycleService(command_db).update_lifecycle(
+                principal, organization_id=1, lead_id=lead.id, status="Contacted", machine_context=authority)
     assert persisted_leads(command_db) == [("worker@example.com", "Contacted")]
     records = [r for r in caplog.records if getattr(r, "event", "").startswith("execution.lead.")]
     assert len(records) == 2
@@ -116,21 +120,33 @@ def test_worker_calls_services_without_http_and_nested_identity_is_preserved(com
                                          (ExecutionPrincipal.for_system, "maintenance")])
 def test_principal_domain_tenant_mismatch_rolls_back_outer_command(command_db, factory, actor):
     principal = factory(actor, 1)
+    authority = None
+    if principal.principal_type == PrincipalType.USER:
+        from backend.models import User, OrganizationMembership
+        command_db.add(User(id=1, email="permission-fixture@example.com", password_hash="unused-test-hash"))
+        command_db.flush()
+        command_db.add(OrganizationMembership(user_id=1, organization_id=1, role="member"))
+        command_db.commit()
+    else:
+        authority = MachineAuthorizationContext(principal, frozenset({ActionPermission.LEAD_CREATE,
+                                                                     ActionPermission.LEAD_LIFECYCLE_CHANGE}))
     with pytest.raises(LeadForgeException) as caught:
         with service_transaction(command_db):
-            lead = LeadService(command_db).create_lead_for_principal(
-                principal, organization_id=1, company="Synthetic", email="one@example.com", source="test")
-            LeadLifecycleService(command_db).update_lifecycle_for_principal(
-                principal, organization_id=2, lead_id=lead.id, status="Contacted")
+            lead = LeadService(command_db).create_lead(
+                principal, organization_id=1, company="Synthetic", email="one@example.com", source="test",
+                machine_context=authority)
+            LeadLifecycleService(command_db).update_lifecycle(
+                principal, organization_id=2, lead_id=lead.id, status="Contacted", machine_context=authority)
     assert caught.value.error_code == "EXECUTION_TENANT_MISMATCH"
     assert persisted_leads(command_db) == []
 
 
 def test_system_is_not_a_cross_tenant_bypass(command_db):
-    foreign = LeadService(command_db).create_lead("Foreign", "foreign@example.com", "test", 2)
+    foreign = create(command_db, "foreign@example.com", organization_id=2)
     principal = ExecutionPrincipal.for_system("maintenance", 1)
-    assert LeadLifecycleService(command_db).update_lifecycle_for_principal(
-        principal, organization_id=1, lead_id=foreign.id, status="Contacted") is None
+    authority = MachineAuthorizationContext(principal, frozenset({ActionPermission.LEAD_LIFECYCLE_CHANGE}))
+    assert LeadLifecycleService(command_db).update_lifecycle(
+        principal, organization_id=1, lead_id=foreign.id, status="Contacted", machine_context=authority) is None
     assert persisted_leads(command_db) == [("foreign@example.com", "New")]
 
 
@@ -139,7 +155,7 @@ def test_service_rejects_raw_serialized_context_and_invalid_model_copy(command_d
     valid = ExecutionPrincipal.for_user(1, 1)
     for invalid in (json.loads(valid.to_json()), valid.model_copy(update={"organization_id": None})):
         with pytest.raises(LeadForgeException):
-            service.create_lead_for_principal(invalid, organization_id=1, company="Synthetic",
+            service.create_lead(invalid, organization_id=1, company="Synthetic",
                                                email="invalid@example.com", source="test")
     assert persisted_leads(command_db) == []
 
@@ -147,13 +163,13 @@ def test_service_rejects_raw_serialized_context_and_invalid_model_copy(command_d
 def test_http_adapter_binds_authenticated_user_membership_and_request_id(tenant_workspace, monkeypatch):
     from tests.api.test_tenant_leads import headers
     seen = []
-    original = LeadService.create_lead_for_principal
+    original = LeadService.create_lead
 
     def capture(self, principal, **kwargs):
         seen.append(principal)
         return original(self, principal, **kwargs)
 
-    monkeypatch.setattr(LeadService, "create_lead_for_principal", capture)
+    monkeypatch.setattr(LeadService, "create_lead", capture)
     request_headers = {**headers(tenant_workspace, "a", csrf=True), "X-Request-ID": "http-chain",
                        "X-Principal-Type": "SYSTEM", "X-Actor-ID": "spoof"}
     client = tenant_workspace["clients"]["a"]

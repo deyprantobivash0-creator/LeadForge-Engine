@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 
 from backend.database.base import Base
 from backend.database.transactions import TransactionAborted, service_transaction
-from backend.models import Lead, LeadAnalysis, Organization
+from backend.models import Lead, LeadAnalysis, Organization, User, OrganizationMembership
+from backend.schemas.execution_principal import ExecutionPrincipal
+from backend.schemas.action_permission import ActionPermission as P, MachineAuthorizationContext
 from backend.repositories.lead_repository import LeadRepository
 from backend.services.analysis_service import AnalysisService
 from backend.services.lead_import_service import LeadImportService
@@ -56,7 +58,18 @@ def persisted_leads(db):
 
 
 def create(db, email="new@example.com", organization_id=1):
-    return LeadService(db).create_lead("Synthetic", email, "test", organization_id)
+    principal = ExecutionPrincipal.for_system("test-fixture", organization_id)
+    context = MachineAuthorizationContext(principal, frozenset({P.LEAD_CREATE}))
+    return LeadService(db).create_lead(principal, company="Synthetic", email=email,
+                                     source="test", organization_id=organization_id,
+                                     machine_context=context)
+
+
+def lifecycle(db, lead_id, organization_id, status):
+    principal = ExecutionPrincipal.for_system("test-fixture", organization_id)
+    context = MachineAuthorizationContext(principal, frozenset({P.LEAD_LIFECYCLE_CHANGE}))
+    return LeadLifecycleService(db).update_lifecycle(principal, lead_id=lead_id,
+        organization_id=organization_id, status=status, machine_context=context)
 
 
 def test_successful_command_commits_once(command_db, monkeypatch):
@@ -91,7 +104,7 @@ def test_nested_service_commands_share_one_commit(command_db, monkeypatch):
     calls = commit_spy(command_db, monkeypatch)
     with service_transaction(command_db):
         lead = create(command_db)
-        LeadLifecycleService(command_db).update_status(lead.id, 1, "Contacted")
+        lifecycle(command_db, lead.id, 1, "Contacted")
         assert calls == []
     assert calls == ["commit"]
     assert persisted_leads(command_db) == [("new@example.com", "Contacted")]
@@ -107,7 +120,7 @@ def test_outer_failure_rolls_back_early_nested_write(command_db, failure):
             if failure == "unexpected":
                 raise RuntimeError("Synthetic command failure")
             if failure == "validation":
-                LeadLifecycleService(command_db).update_status(lead.id, 1, "invalid")
+                lifecycle(command_db, lead.id, 1, "invalid")
             else:
                 create(command_db, organization_id=999)
     assert persisted_leads(command_db) == []
@@ -119,7 +132,7 @@ def test_caught_inner_failure_marks_outer_rollback_only(command_db):
         with service_transaction(command_db):
             lead = create(command_db)
             try:
-                LeadLifecycleService(command_db).update_status(lead.id, 1, "invalid")
+                lifecycle(command_db, lead.id, 1, "invalid")
             except ValueError:
                 pass
     assert persisted_leads(command_db) == []
@@ -158,7 +171,7 @@ def test_rollback_failure_preserves_original_and_logs_safely(command_db, monkeyp
 
 def test_lifecycle_cannot_mutate_another_tenant(command_db):
     lead_id = create(command_db, organization_id=2).id
-    assert LeadLifecycleService(command_db).update_lifecycle(lead_id, 1, status="Contacted") is None
+    assert lifecycle(command_db, lead_id, 1, "Contacted") is None
     with Session(command_db.get_bind()) as observer:
         assert observer.get(Lead, lead_id).organization_id == 2
         assert observer.get(Lead, lead_id).status == "New"
@@ -179,6 +192,11 @@ CSV = b"company,email,source\nOne,one@example.com,test\nTwo,two@example.com,test
 
 
 def import_command(db):
+    # Confirmation is a human/session operation: seed only the current member.
+    db.add(User(id=1, email="import-human@example.com", password_hash="unused-test-hash"))
+    db.flush()
+    db.add(OrganizationMembership(user_id=1, organization_id=1, role="member"))
+    db.commit()
     service = LeadImportService(db)
     # Synthetic session signing material; never a real session/credential.
     signing_key = "0" * 64
@@ -189,7 +207,7 @@ def import_command(db):
 def test_csv_success_commits_batch_once(command_db, monkeypatch):
     service, token, key = import_command(command_db)
     calls = commit_spy(command_db, monkeypatch)
-    assert service.confirm(CSV, token, 1, 1, key).imported == 2
+    assert service.confirm(ExecutionPrincipal.for_user(1, 1), CSV, token, 1, 1, key).imported == 2
     assert calls == ["commit"]
     assert len(persisted_leads(command_db)) == 2
 
@@ -209,7 +227,7 @@ def test_csv_failure_rolls_back_released_early_savepoint(command_db, monkeypatch
 
     monkeypatch.setattr(service.repository, "add", add)
     with pytest.raises(RuntimeError):
-        service.confirm(CSV, token, 1, 1, key)
+        service.confirm(ExecutionPrincipal.for_user(1, 1), CSV, token, 1, 1, key)
     assert count == 2 and persisted_leads(command_db) == []
 
 
@@ -217,7 +235,7 @@ def test_nested_csv_and_later_failure_roll_back_entire_batch(command_db):
     service, token, key = import_command(command_db)
     with pytest.raises(ValueError):
         with service_transaction(command_db):
-            assert service.confirm(CSV, token, 1, 1, key).imported == 2
+            assert service.confirm(ExecutionPrincipal.for_user(1, 1), CSV, token, 1, 1, key).imported == 2
             raise ValueError("Later business validation failed")
     assert persisted_leads(command_db) == []
 
