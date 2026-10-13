@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 import pytest
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import IntegrityError, StatementError
+from sqlalchemy.exc import DataError, IntegrityError, StatementError
 from sqlalchemy.orm import Session
 
 from backend.models import AuditEvent
@@ -32,12 +32,24 @@ def test_postgres_migrated_schema(audit_pg_engine):
     assert columns["recorded_at"]["type"].timezone
 
 
-@pytest.mark.parametrize("changes", INVALID_CASES)
-def test_postgres_raw_constraints(audit_pg_engine, changes):
+# PostgreSQL rejects these oversized VARCHAR cases before evaluating CHECKs.
+VARCHAR_OVERFLOW_CASES = {36, 38, 40, 42, 44, 46, 48, 50}
+
+
+@pytest.mark.parametrize("changes,expected_error", [
+    pytest.param(changes, DataError if index in VARCHAR_OVERFLOW_CASES else IntegrityError,
+                 id=f"changes{index}")
+    for index, changes in enumerate(INVALID_CASES)
+])
+def test_postgres_raw_constraints(audit_pg_engine, changes, expected_error):
     with audit_pg_engine.connect() as connection:
-        with pytest.raises(IntegrityError):
+        before = connection.scalar(text("SELECT COUNT(*) FROM audit_events"))
+        with pytest.raises(expected_error) as rejected:
             connection.execute(AuditEvent.__table__.insert(), audit_values(**changes))
+        if expected_error is DataError:
+            assert rejected.value.orig.sqlstate == "22001"  # string_data_right_truncation
         connection.rollback()
+        assert connection.scalar(text("SELECT COUNT(*) FROM audit_events")) == before
 
 
 @pytest.mark.parametrize("evidence", [[], [{"permission": "lead.create", "decision": "PERMIT", "reason_code": "PERMITTED_BY_ROLE"}],
