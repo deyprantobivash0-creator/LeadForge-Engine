@@ -3,6 +3,8 @@
 from dataclasses import replace
 import json
 import logging
+import traceback
+import warnings
 
 import pytest
 from pydantic import ValidationError
@@ -211,3 +213,84 @@ def test_adapter_rejects_forged_context_and_live_membership_revocation(tenant_wo
         db.commit()
         with pytest.raises(OrganizationAccessDenied):
             principal_from_authorized_context(ca, authenticated_user=a, db=db, correlation_id="safe")
+
+
+@pytest.mark.parametrize("field", ["user_actor", "organization", "correlation", "type",
+    "delegation", "delegator_actor", "delegator_type", "workflow", "agent", "integration"])
+def test_e03_r1_rejected_principal_has_no_diagnostic_disclosure(field, capsys, caplog):
+    from backend.services.execution_identity import require_tenant_identity
+    marker = "ProbeR1!"  # Short synthetic marker avoids diagnostic truncation hiding a regression.
+    sensitive = {"password": marker}
+    parent = ActorReference(principal_type=PrincipalType.USER, actor_id=7)
+    principal = ExecutionPrincipal.for_agent("agent-r1", 1, delegated_by=parent, correlation_id="r1-correlation")
+    if field == "user_actor":
+        candidate = ExecutionPrincipal.for_user(7, 1).model_copy(update={"actor_id": sensitive})
+    elif field in {"delegator_actor", "delegator_type"}:
+        key = "actor_id" if field == "delegator_actor" else "principal_type"
+        candidate = principal.model_copy(update={"delegated_by": parent.model_copy(update={key: sensitive})})
+    elif field in {"workflow", "agent", "integration"}:
+        factory = getattr(ExecutionPrincipal, "for_" + field)
+        key = {"workflow": "workflow_run_id", "agent": "agent_id", "integration": "integration_id"}[field]
+        candidate = factory(field + "-r1", 1).model_copy(update={key: sensitive})
+    else:
+        key = {"organization": "organization_id", "correlation": "correlation_id",
+               "type": "principal_type", "delegation": "delegated_by"}[field]
+        candidate = principal.model_copy(update={key: sensitive})
+    with warnings.catch_warnings(record=True) as emitted:
+        warnings.simplefilter("always")
+        with pytest.raises(LeadForgeException) as rejected:
+            require_tenant_identity(candidate, 1)
+    error = rejected.value
+    assert error.error_code == "EXECUTION_IDENTITY_INVALID" and error.status_code == 400
+    assert str(error) == "Invalid execution identity."
+    assert error.__cause__ is None and error.__context__ is None
+    assert emitted == []
+    output = capsys.readouterr()
+    assert marker not in output.out + output.err + caplog.text
+    assert marker not in str(error) + repr(error) + "".join(traceback.format_exception(error))
+
+
+@pytest.mark.parametrize("corrupted", [False, True])
+def test_e03_r1_validation_never_serializes_candidate(monkeypatch, corrupted):
+    from backend.services.execution_identity import require_tenant_identity
+    principal = ExecutionPrincipal.for_user(7, 1)
+    if corrupted:
+        principal = principal.model_copy(update={"actor_id": {"password": "ProbeR1!"}})
+    def forbidden(*args, **kwargs):
+        pytest.fail("Candidate serialization attempted")
+    for name in ("model_dump", "model_dump_json", "dict", "json", "__repr__", "__str__"):
+        monkeypatch.setattr(ExecutionPrincipal, name, forbidden)
+    if corrupted:
+        with pytest.raises(LeadForgeException) as rejected:
+            require_tenant_identity(principal, 1)
+        assert rejected.value.error_code == "EXECUTION_IDENTITY_INVALID"
+        assert rejected.value.__cause__ is None and rejected.value.__context__ is None
+    else:
+        assert require_tenant_identity(principal, 1) is None
+
+
+@pytest.mark.parametrize("factory,actor", [
+    (ExecutionPrincipal.for_user, 7), (ExecutionPrincipal.for_system, "system-r1"),
+    (ExecutionPrincipal.for_agent, "agent-r1"), (ExecutionPrincipal.for_workflow, "workflow-r1"),
+    (ExecutionPrincipal.for_integration, "integration-r1")])
+def test_e03_r1_valid_principal_revalidates_fresh_without_identity_drift(factory, actor, monkeypatch):
+    from backend.services.execution_identity import require_tenant_identity
+    kwargs = dict(correlation_id="r1-exact-correlation")
+    if factory != ExecutionPrincipal.for_user:
+        kwargs["delegated_by"] = ActorReference(principal_type=PrincipalType.USER, actor_id=7)
+    if factory == ExecutionPrincipal.for_agent:
+        kwargs.update(workflow_run_id="parent-r1", integration_id="link-r1")
+    principal = factory(actor, 1, **kwargs)
+    expected = principal.model_dump()  # Known valid fixture, outside the validation path.
+    validate = ExecutionPrincipal.model_validate
+    snapshots = []
+    def observed(candidate, *args, **kwargs):
+        assert candidate is principal
+        snapshot = validate(candidate, *args, **kwargs)
+        snapshots.append(snapshot)
+        return snapshot
+    monkeypatch.setattr(ExecutionPrincipal, "model_validate", observed)
+    assert ExecutionPrincipal.model_config["revalidate_instances"] == "always"
+    assert require_tenant_identity(principal, 1) is None
+    assert len(snapshots) == 1 and snapshots[0] is not principal
+    assert snapshots[0].model_dump() == expected and principal.model_dump() == expected

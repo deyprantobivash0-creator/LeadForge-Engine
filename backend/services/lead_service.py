@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -6,6 +8,9 @@ from backend.schemas.execution_principal import ExecutionPrincipal
 from backend.services.execution_identity import require_tenant_identity, execution_event
 from backend.schemas.action_permission import ActionPermission, MachineAuthorizationContext
 from backend.services.action_permission_service import ActionPermissionService
+from backend.schemas.audit_event import AuditLeadTarget
+from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
+from backend.repositories.audit_repository import AuditRepository
 
 from backend.models.lead import Lead
 from backend.repositories.lead_repository import LeadRepository
@@ -15,6 +20,7 @@ class LeadService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = LeadRepository(db)
+        self.audit_repository = AuditRepository(db)
 
     def create_lead(
         self, principal: ExecutionPrincipal, *, company: str, email: str,
@@ -24,10 +30,16 @@ class LeadService:
         try:
             with service_transaction(self.db):
                 require_tenant_identity(principal, organization_id)
-                ActionPermissionService(self.db).require(principal, ActionPermission.LEAD_CREATE,
-                                                         organization_id, machine_context)
+                decision, authority = ActionPermissionService(self.db).require_with_context(
+                    principal, ActionPermission.LEAD_CREATE, organization_id, machine_context)
                 execution_event("execution.lead.create", principal)
                 lead = self._create_lead_internal(company, email, source, organization_id)
+                draft = AuditEventBuilder.create_completed(
+                    principal, target=AuditLeadTarget(lead.organization_id, lead.id),
+                    authorization=capture_authorization_receipt(principal, decision, authority),
+                    occurred_at=datetime.now(timezone.utc),
+                )
+                self.audit_repository.append(draft)
             return lead
         except IntegrityError as exc:
             # The advisory read can race. Classify only this exact uniqueness

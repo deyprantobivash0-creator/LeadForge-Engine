@@ -38,6 +38,32 @@ Nginx critical diagnostics are separate native component streams. Legacy unregis
 manual scripts with print statements were not expanded or run as application entrypoints.
 No universal PII detector is claimed; future fields/handlers must obey this contract.
 
+## Generic operation lifecycle
+
+The shared `@operation` decorator emits INFO `<operation>.started` before the
+command, INFO `<operation>.completed` on return with `duration_ms`, and WARNING
+`<operation>.failed` on an exception with `duration_ms` and `exception_type`
+(the exception class name). These events use the common JSON envelope above.
+Failure instrumentation does not include exception text or traceback. The
+original result is returned and the original exception is re-raised unchanged.
+`success=False`, used for session resolution, emits failures only.
+
+Generic instrumentation does not inspect positional/keyword arguments or return
+objects for organization, user or resource IDs, filenames, source data, principal
+dumps or result counters. It surrounds commands without owning domain validation;
+primitive type, plausible shape, usual HTTP origin, or command success/failure
+does not establish that those values are safe to log. It performs no domain
+validation or tenant authentication. Business metadata belongs in explicit
+application events emitted by a layer that has established the relevant trust;
+the formatter's field allowlist alone does not establish that trust.
+
+This log policy does not change business results: login still returns its user,
+preview still calculates counts, confirmation still returns counts, and report
+queries remain tenant scoped. Generic lifecycle events provide no replacement
+tenant/user attribution or result counters. Explicit application events have
+their own contracts; these statements do not certify every log as confidential
+or tamper-proof.
+
 ## Correlation and timing
 
 `X-Request-ID` accepts exactly one ASCII token matching
@@ -52,6 +78,9 @@ response header for the optional development cross-origin client.
 An outer ASGI boundary surrounds the framework's error handlers. The ID is stored on
 request.state and in a ContextVar, propagated into normal service/threadpool work, and
 reset after response streaming/error handling. This ensures error responses have IDs.
+Generic operation events consume this validated/generated request context when
+present; arbitrary service-command correlation arguments are not extracted.
+Direct service calls without request context have no automatic `request_id`.
 One backend completion event is emitted after streaming finishes, even on exceptions.
 Uvicorn access logging is disabled in the image; its runtime logger uses the same JSON
 formatter. Proxy and backend completion events are distinct hop timings, not duplicate
@@ -74,14 +103,15 @@ DEBUG remains prohibited. One JSON format is used in every environment, no forma
 | http.request.completed, http.request.failed, http.request.slow | One request completion/failure, optional threshold warning; route template, status, timing, ID. |
 | http.exception | Unexpected error type and safe stack locations, correlated request. |
 | http.domain.rejected, http.validation.rejected | Fixed domain error code/status or validation status; no submitted values. |
-| auth.login.started, auth.login.completed, auth.login.failed | Login operation; successful user ID, duration, failure type; no email/password/token. |
-| auth.session.failed | Missing/invalid/expired/revoked session category; no raw session ID. Successful per-request resolutions are quiet. |
-| auth.logout.started, auth.logout.completed, auth.logout.failed | Existing server revocation operation, duration/failure category; no token. |
+| auth.login.started, auth.login.completed, auth.login.failed | Generic login lifecycle; completion/failure duration and failure exception class; no result-derived user ID or credentials. |
+| auth.session.failed | Failure-only generic session-resolution lifecycle; duration and exception class, no raw session ID/token. Successful resolutions are quiet. |
+| auth.change_password.started, auth.change_password.completed, auth.change_password.failed | Generic password-change lifecycle; completion/failure duration and failure exception class; no command/session/user fields or passwords. |
+| auth.logout.started, auth.logout.completed, auth.logout.failed | Generic revocation lifecycle; completion/failure duration and failure exception class; no session/user fields or token. |
 | tenant.access.denied | Authenticated user ID and denied selector ID; no customer names. Workspace selection remains client state, authorized again per request. |
-| import.preview.started, import.preview.completed, import.preview.failed | Non-mutating preview duration and total/ready/duplicate/invalid counts. |
-| import.confirm.started, import.confirm.completed, import.confirm.failed | Transactional confirmation, imported/duplicate/invalid counts; no CSV rows or preview/session key. |
+| import.preview.started, import.preview.completed, import.preview.failed | Generic non-mutating preview lifecycle; completion/failure duration and failure exception class; no argument-derived organization/user IDs, CSV data, signing material or result counters. |
+| import.confirm.started, import.confirm.completed, import.confirm.failed | Generic confirmation lifecycle; completion/failure duration and failure exception class; no argument-derived organization/user IDs, CSV data, preview/session key or result counters. Completion is not proof of an outer transaction's durable commit. |
 | ai.analysis.started, ai.analysis.completed, ai.analysis.failed, ai.analysis.conflict | Existing claim/completion/failure boundaries, tenant/Lead/Analysis IDs, fixed provider/category/state, monotonic duration; no prompts/responses/lead contents. |
-| report.generate.started, report.generate.completed, report.generate.failed | Reports v2 overview service boundary, tenant ID and duration/failure type. |
+| report.generate.started, report.generate.completed, report.generate.failed | Generic Reports v2 overview lifecycle; completion/failure duration and failure exception class; no argument-derived tenant ID or result traversal. |
 | report.export.started, report.export.completed, report.export.failed | Existing CSV stream, tenant ID, row count and duration/failure type. |
 | readiness.failed | database_unavailable or schema_not_ready, exception type where useful; no driver text or topology. |
 | migration.started, migration.completed, migration.failed | One-shot migration target revision, fixed category/type; nonzero failures preserve startup gating. |
@@ -143,8 +173,15 @@ migration.failed and its fixed DB/schema category; backend/frontend should remai
 502: correlate Nginx upstream_status with backend state/lifecycle/readiness, not client
 body or query. Login401: auth.login.failed and error category; do not log credentials.
 CSRF403/session401: domain/session category; verify cookies/HTTPS and the established
-CSRF flow. Import failure: operation ID/context, counts and fixed failure type; preserve
-file contents outside logs. AI failure: tenant/Lead IDs and provider/state/category,
+CSRF flow. Import failure: correlate the returned request ID with HTTP status and
+`import.preview`/`import.confirm` lifecycle events; use failure exception class and
+duration, not generic tenant/user fields or counters. When a command returns a
+result, its preview summary or confirmation counts are available to the authorized
+caller in the API response, not in generic logs. For rejected commands, use the
+existing response error and correlated diagnostics; no replacement generic count
+or tenant field is provided. Direct service calls without request context cannot
+be correlated automatically by these events. Preserve CSV contents, tokens and
+credentials outside logs. AI failure: tenant/Lead IDs and provider/state/category,
 never prompt or model response.
 
 Graceful Docker restart logs stopping/stopped/started. Process-level SIGTERM exit was

@@ -1,5 +1,4 @@
 """Canonical JSON logging with deliberately bounded, content-free diagnostics."""
-import inspect
 import json
 import logging
 import sys
@@ -91,35 +90,26 @@ def event(name, *, level=logging.INFO, exc=None, **fields):
 
 
 def operation(name, *, success=True):
-    """Instrument only selected service boundaries; never record arguments/results."""
+    """Log lifecycle metadata only; arguments/results have no generic trust grant.
+
+    Domain IDs and counters belong in explicitly validated application events.
+    Request correlation comes from the existing framework-owned context, not
+    command arguments. ``success=False`` retains failure-only instrumentation.
+    """
     def decorate(function):
-        signature = inspect.signature(function)
-        def context(args, kwargs):
-            bound = signature.bind(*args, **kwargs).arguments
-            return {key: bound[key] for key in ("organization_id", "user_id", "lead_id") if key in bound}
-        def completed(result, fields, started):
-            if success:
-                values = getattr(result, "summary", result)
-                for key in ("total", "ready", "imported", "duplicates", "invalid"):
-                    value = getattr(values, key, None)
-                    if isinstance(value, int):
-                        fields[key] = value
-                user = getattr(result, "user", None)
-                if user is not None:
-                    fields["user_id"] = user.id
-                event(name + ".completed", duration_ms=round((perf_counter()-started)*1000, 2), **fields)
         @wraps(function)
         def wrapper(*args, **kwargs):
-            fields = context(args, kwargs); started = perf_counter()
+            started = perf_counter()
             if success:
-                event(name + ".started", **fields)
+                event(name + ".started")
             try:
                 result = function(*args, **kwargs)
             except Exception as exc:
                 event(name + ".failed", level=logging.WARNING, exception_type=type(exc).__name__,
-                      duration_ms=round((perf_counter()-started)*1000, 2), **fields)
+                      duration_ms=round((perf_counter()-started)*1000, 2))
                 raise
-            completed(result, fields, started)
+            if success:
+                event(name + ".completed", duration_ms=round((perf_counter()-started)*1000, 2))
             return result
         return wrapper
     return decorate

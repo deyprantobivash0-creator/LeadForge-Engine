@@ -12,10 +12,14 @@ def require_tenant_identity(principal: ExecutionPrincipal, organization_id: int)
     # Revalidate even an incorrectly constructed/copied internal model. Shape
     # validation still does not authenticate serialized data or grant authority.
     try:
-        verified = ExecutionPrincipal.model_validate(principal.model_dump())
-    except ValueError as exc:
+        verified = ExecutionPrincipal.model_validate(principal)
+    except (ValueError, TypeError):
+        verified = None
+    if verified is None:
+        # Raise after leaving the validation handler so rejected values cannot
+        # remain reachable through the outward error's cause or context.
         raise LeadForgeException("Invalid execution identity.", status_code=400,
-                                 error_code="EXECUTION_IDENTITY_INVALID") from exc
+                                 error_code="EXECUTION_IDENTITY_INVALID") from None
     if type(organization_id) is not int or verified.organization_id != organization_id:
         raise LeadForgeException("Execution organization mismatch.", status_code=403,
                                  error_code="EXECUTION_TENANT_MISMATCH")

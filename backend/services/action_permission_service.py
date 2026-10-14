@@ -5,7 +5,7 @@ from backend.core.logger import event
 from backend.repositories.permission_repository import PermissionRepository
 from backend.schemas.action_permission import (
     ActionPermission, HumanAuthorizationContext, MachineAuthorizationContext,
-    PermissionResult, ROLE_PERMISSIONS,
+    AuthorizationContext, PermissionDecision, PermissionResult, ROLE_PERMISSIONS,
 )
 from backend.schemas.execution_principal import PrincipalType
 from backend.services.execution_identity import require_tenant_identity
@@ -26,6 +26,19 @@ class ActionPermissionService:
 
     def require(self, principal, permission: ActionPermission, organization_id: int,
                 machine_context: MachineAuthorizationContext | None = None):
+        decision, _context = self.require_with_context(
+            principal, permission, organization_id, machine_context)
+        return decision
+
+    def require_with_context(
+        self, principal, permission: ActionPermission, organization_id: int,
+        machine_context: MachineAuthorizationContext | None = None,
+    ) -> tuple[PermissionDecision, AuthorizationContext | None]:
+        """Return the actual gating decision and its same-time authority snapshot.
+
+        Human authority is still resolved here from live membership. Returning
+        the evaluated context avoids a second lookup/evaluation for audit.
+        """
         require_tenant_identity(principal, organization_id)
         if principal.principal_type == PrincipalType.USER:
             # A supplied snapshot must never override current DB membership.
@@ -40,4 +53,4 @@ class ActionPermissionService:
         if decision.result != PermissionResult.PERMIT:
             raise LeadForgeException("Action not permitted.", status_code=403,
                                      error_code="ACTION_PERMISSION_DENIED")
-        return decision
+        return decision, context
