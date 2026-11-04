@@ -6,7 +6,7 @@ google-genai==2.16.0
 google-generativeai==0.8.6
 httpx==0.28.1
 langgraph==1.2.10
-langgraph-sdk==0.4.4
+langgraph-sdk==0.4.6
 urllib3==2.8.0
 pydantic==2.13.4
 pydantic-settings==2.14.2
