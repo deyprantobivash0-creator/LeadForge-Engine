@@ -1,1 +1,7 @@
 deploy/render/start-nginx.sh text eol=lf
+/requirements.txt text eol=lf
+/frontend/package.json text eol=lf
+/frontend/package-lock.json text eol=lf
+/frontend/e2e/product.spec.js text eol=lf
+/backend/services/lead_import_service.py text eol=lf
+/tests_postgres/test_postgres_baseline.py text eol=lf
