@@ -6,6 +6,9 @@ import logging
 from sqlalchemy.orm import Session
 
 from backend.core.logger import event
+from backend.database.transaction_policy import (
+    GovernedRoot, current_root, service_savepoint,
+)
 
 
 _STATE_KEY = "leadforge.service_transaction"
@@ -16,7 +19,7 @@ class TransactionAborted(RuntimeError):
 
 
 def in_service_transaction(db: Session) -> bool:
-    return _STATE_KEY in db.info
+    return current_root(db) is not None
 
 
 def rollback_safely(db: Session) -> None:
@@ -40,25 +43,30 @@ def service_transaction(db: Session):
     The command adopts it. Callers must not commit/rollback inside this scope or
     mix it with a separately owned Session.begin() transaction.
     """
-    state = db.info.get(_STATE_KEY)
+    state = current_root(db)
     if state is not None:
         try:
+            state.check()
             yield
         except BaseException:
-            state["failed"] = True
+            state.failed = True
             raise
         return
 
-    state = {"failed": False}
-    db.info[_STATE_KEY] = state
+    state = GovernedRoot(db)
     try:
+        state.start()
         yield
-        if state["failed"]:
+        if state.failed:
             raise TransactionAborted("A nested service command failed.")
-        db.commit()
+        state.commit()
     except BaseException as exc:
         event("transaction.command.failed", level=logging.WARNING, exc=exc)
-        rollback_safely(db)
+        try:
+            state.rollback()
+        except BaseException:
+            state.remove()
+            rollback_safely(db)
         raise
     finally:
-        db.info.pop(_STATE_KEY, None)
+        state.remove()

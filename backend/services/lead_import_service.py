@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.database.transactions import service_transaction
+from backend.database.transactions import service_transaction, service_savepoint
 from backend.schemas.execution_principal import ExecutionPrincipal, PrincipalType
 from backend.schemas.action_permission import ActionPermission
 from backend.services.action_permission_service import ActionPermissionService
@@ -171,17 +171,11 @@ class LeadImportService:
         rows, _, summary = self._evaluate(content, organization_id)
         imported = 0
         raced = 0
-        if self.db.get_bind().dialect.name == "sqlite":
-            connection = self.db.connection()
-            # sqlite3 legacy mode does not BEGIN for SELECT/SAVEPOINT. A real
-            # outer transaction must precede the first releasable row savepoint.
-            if not connection.connection.driver_connection.in_transaction:
-                connection.exec_driver_sql("BEGIN")
         for row in rows:
             if row.status != "ready":
                 continue
             try:
-                with self.db.begin_nested():
+                with service_savepoint(self.db):
                     self.repository.add(organization_id, row.company, row.email, row.source)
                 imported += 1
             except IntegrityError as exc:

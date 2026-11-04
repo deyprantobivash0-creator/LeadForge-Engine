@@ -326,9 +326,8 @@ def test_postgres_import_uniqueness_and_tenant_boundary(workspace, monkeypatch):
         if email == "concurrent@example.com":
             # Both advisory prechecks completed; race only the shared-email writes.
             with lock:
-                arrivals.append(repository.db.connection().exec_driver_sql(
-                    "SELECT pg_backend_pid()"
-                ).scalar_one())
+                from sqlalchemy import func, select
+                arrivals.append(repository.db.scalar(select(func.pg_backend_pid())))
             barrier.wait(timeout=15)
         try:
             return original(repository, organization_id, company, email, source)

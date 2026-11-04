@@ -1,5 +1,35 @@
 # E02 service-owned transactions
 
+## TX amendment (2026-10-15, local review candidate)
+
+See [ADR-002](adr/ADR-002-TRANSACTION-GOVERNANCE.md) and the
+[TX acceptance report](E05_I3B_P1_TX_ACCEPTANCE_REPORT.md). The original E02
+acceptance report is historical and is not rewritten.
+
+Within supported runtime database APIs E02 exclusively owns root settlement.
+Logical nested scopes share authority, never settlement permits. Repositories
+query/add/flush only. Use `service_savepoint(db)` for approved row recovery;
+direct Session/Connection/transaction-object control is prohibited. Unknown
+physical transaction provenance fails closed. Direct raw DBAPI manipulation is
+outside the guarantee and prohibited in runtime application code.
+
+SQLite reads remain physically lazy. First typed DML or an approved root request
+establishes deferred BEGIN before mutation/savepoints. PostgreSQL retains native
+transaction behavior. Opaque SQL is not a supported business execution API
+inside E02; use bound SQLAlchemy expressions. Readiness/operator/migration
+queries have separate classified lifetimes.
+
+Public settlement gates and native events prevent premature supported-path
+settlement. Policy violations break the unit even if caught and prohibit further
+business execution; cleanup may invalidate/discard the Session. Ordinary caught
+nested business failures still mark only rollback-only. Root/connection identity
+cannot silently transfer across invalidation or reconnection. Permits and
+per-instance method/event registrations are restored/removed at root exit.
+
+The original text below records E02 history. Its CSV-local BEGIN/savepoint
+plumbing is superseded by the helper; business duplicate and count semantics
+remain unchanged. No public HTTP taxonomy or schema change is intended.
+
 Date: 2026-10-12. Implementation baseline: `3875388f60ca58b698889b25a53620ba50f07afd` on main. Local implementation only; no commit/deployment authorization. No schema change or migration.
 
 ## Prior write-path inventory
