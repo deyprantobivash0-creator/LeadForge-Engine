@@ -2,7 +2,7 @@ import { test, expect } from './helpers/test.js';
 import { login, api } from './helpers/auth.js';
 import { company } from './fixtures/data.js';
 
-test('production routes, workspace retention, semantics, readonly settings and responsive navigation', async ({ page }) => {
+test('production routes, workspace retention, semantics, Settings control contract and responsive navigation', async ({ page }) => {
   await login(page);
   const lead = (await api(page, '/api/leads/search?company=E2E%20Synthetic%20Lead')).body.items[0];
   for (const [path, heading] of [['/', 'Revenue Intelligence Dashboard'], ['/leads', 'Lead Workspace'], ['/imports', 'Bring your leads into focus.'], ['/ai', 'Lead Intelligence Center'], ['/reports', 'Intelligence Reports'], ['/settings', 'Settings & Integrations']]) {
@@ -33,7 +33,16 @@ test('production routes, workspace retention, semantics, readonly settings and r
   await expect(page.getByRole('heading').filter({ hasText: company })).toBeVisible();
   await page.goto('/settings');
   expect((await api(page, '/api/settings/overview')).body.ai.provider).toBe('mock');
-  await expect(page.locator('input, textarea')).toHaveCount(0);
+  const settings = page.getByRole('main');
+  const passwordForm = settings.getByRole('form', { name: 'Change Password', exact: true });
+  await expect(passwordForm).toBeVisible();
+  for (const label of ['Current password', 'New password', 'Confirm new password']) {
+    const input = passwordForm.getByLabel(label, { exact: true });
+    await expect(input).toHaveAttribute('type', 'password');
+    await expect(input).toBeEditable();
+  }
+  await expect(settings.locator('input[type="password"]')).toHaveCount(3);
+  await expect(settings.locator('input:not([type="password"]), textarea, select, [contenteditable]:not([contenteditable="false"])')).toHaveCount(0);
   for (const [width, height] of [[1440, 900], [768, 1024], [390, 844]]) {
     await page.setViewportSize({ width, height });
     await page.goto('/leads');
