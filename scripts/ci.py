@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-from secrets import token_urlsafe
 from pathlib import Path
 import shutil
 import subprocess
@@ -165,24 +164,55 @@ def secrets():
                     for finding in json.loads(report.read_text()):
                         print(json.dumps({key: finding.get(key) for key in ("File", "StartLine", "RuleID")}))
                 raise RuntimeError("Gitleaks failed; only finding locations are displayed")
-            secret_negative_probe(stage, [native, "dir", str(stage), "--config", str(stage / ".gitleaks.toml"), "--redact=100", "--exit-code=1"])
+            secret_negative_probe(stage, [native, "dir", str(stage), "--config", str(stage / ".gitleaks.toml"), "--redact=100"])
             return
         args = ["docker", "run", "--rm", "--network=none", "-v", f"{stage}:/audit:ro", GITLEAKS]
         run(["docker", "pull", GITLEAKS])
         run([*args, "dir", "/audit", "--config", "/audit/.gitleaks.toml", "--redact=100", "--exit-code=1"])
-        secret_negative_probe(stage, [*args, "dir", "/audit", "--config", "/audit/.gitleaks.toml", "--redact=100", "--exit-code=1"])
+        secret_negative_probe(stage, [*args, "dir", "/audit", "--config", "/audit/.gitleaks.toml", "--redact=100"])
 
 
 def secret_negative_probe(stage, command):
     # Never save this synthetic probe to repository source. A global path waiver
     # must not make a new secret in the reviewed migration-test file invisible.
     target = stage / "tests/test_auth_migration.py"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text('api_key = "sk-' + token_urlsafe(48) + '"\n', encoding="utf-8")
-    result = subprocess.run(command, cwd=ROOT, env=environment(), capture_output=True, timeout=120)
-    if result.returncode != 1:
-        raise RuntimeError("Gitleaks negative control failed; narrow exception must detect new secrets")
-    print("Secret scanner negative control passed")
+    original = target.read_bytes() if target.exists() else None
+    # Random tokens can contain default-rule stopwords and be legitimately ignored.
+    # A public-message digest is deterministic synthetic data, not a credential.
+    probe = hashlib.sha256(b"LeadForge secret-scan negative control; not a credential").hexdigest()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('api_key = "' + probe + '"\n', encoding="utf-8")
+        try:
+            result = subprocess.run([*command, "--exit-code=42", "--report-format=json", "--report-path=-"],
+                                    cwd=ROOT, env=environment(), capture_output=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            print(json.dumps({"gate": "gitleaks-negative-control", "execution_error": type(exc).__name__}))
+            raise RuntimeError("Gitleaks negative control could not execute") from None
+        try:
+            report = json.loads(result.stdout)
+        except (ValueError, UnicodeError, TypeError):
+            report = None
+        valid_report = isinstance(report, list) and all(isinstance(item, dict) for item in report)
+        finding = report[0] if valid_report and len(report) == 1 else {}
+        path = finding.get("File")
+        detected = (finding.get("RuleID") == "generic-api-key"
+                    and isinstance(path, str)
+                    and path.replace("\\", "/") in {target.as_posix(), "/audit/tests/test_auth_migration.py"}
+                    and finding.get("StartLine") == finding.get("EndLine") == 1
+                    and finding.get("Secret") == "REDACTED")
+        # Never echo captured output, matches, secrets or exception arguments.
+        print(json.dumps({"gate": "gitleaks-negative-control", "returncode": result.returncode,
+                          "detection_exit_code": 42, "report_valid": valid_report,
+                          "expected_finding": detected}))
+        if result.returncode != 42 or not detected:
+            raise RuntimeError("Gitleaks negative control failed; expected synthetic finding required")
+        print("Secret scanner negative control passed: generic-api-key synthetic fixture detected")
+    finally:
+        if original is None:
+            target.unlink(missing_ok=True)
+        else:
+            target.write_bytes(original)
 
 
 def hygiene():
