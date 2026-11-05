@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_
+from sqlalchemy import and_, select, update
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session
 
 from backend.models.lead import Lead
@@ -47,6 +48,44 @@ class LeadRepository:
             )
             .first()
         )
+
+    def get_lead_for_lifecycle_update(
+        self, lead_id: int, organization_id: int,
+    ) -> Lead | None:
+        """Acquire refreshed tenant-owned state under the caller's E02 root.
+
+        E02 alone validates transaction ownership and physical provenance.
+        Acquire before scalar snapshots or pending ORM changes: refreshing must
+        neither overwrite pending values nor implicitly flush unrelated work.
+        PostgreSQL locks the matching row until root settlement. SQLite's scoped
+        primary-key self-update reserves its database-wide writer before SELECT;
+        it is not a row lock. The managed Lead schema has no UPDATE triggers or
+        on-update columns. Busy/snapshot errors propagate to the E02 caller.
+        Savepoint acquisition is excluded because its lock could be released
+        before the root settles; logical nested E02 scopes share the root.
+        """
+        # Keep configuration-dependent imports behind the disposable PG fixture.
+        from backend.database.transaction_policy import require_governed_physical_root
+
+        require_governed_physical_root(self.db)
+        # populate_existing must never discard pending values or cause an
+        # implicit autoflush before ownership is established.
+        if self.db.new or self.db.dirty or self.db.deleted:
+            raise InvalidRequestError("Flush pending ORM changes before lifecycle acquisition.")
+        if self.db.in_nested_transaction():
+            raise InvalidRequestError("Lifecycle acquisition requires the owning transaction, not a savepoint.")
+        dialect = self.db.get_bind().dialect.name
+        if dialect not in {"postgresql", "sqlite"}:
+            raise InvalidRequestError("Unsupported database for lifecycle acquisition.")
+        with self.db.no_autoflush:
+            predicate = (Lead.organization_id == organization_id, Lead.id == lead_id)
+            if dialect == "sqlite":
+                self.db.execute(update(Lead).where(*predicate).values(id=Lead.id)
+                                .execution_options(synchronize_session=False))
+            query = select(Lead).where(*predicate).execution_options(populate_existing=True)
+            if dialect == "postgresql":
+                query = query.with_for_update(of=Lead)
+            return self.db.execute(query).scalar_one_or_none()
 
     def get_lead_by_email(
         self,
