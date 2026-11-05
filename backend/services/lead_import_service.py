@@ -8,6 +8,7 @@ import hmac
 import io
 import json
 import time
+from datetime import datetime, timezone
 
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +19,9 @@ from backend.schemas.execution_principal import ExecutionPrincipal, PrincipalTyp
 from backend.schemas.action_permission import ActionPermission
 from backend.services.action_permission_service import ActionPermissionService
 from backend.services.execution_identity import require_tenant_identity
+from backend.schemas.audit_event import ImportAuditDetails
+from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
+from backend.repositories.audit_repository import AuditRepository
 
 from backend.repositories.lead_import_repository import LeadImportRepository
 from backend.schemas.import_schema import ImportPreview, ImportResult, ImportRow, ImportSummary
@@ -107,6 +111,7 @@ class LeadImportService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = LeadImportRepository(db)
+        self.audit_repository = AuditRepository(db)
 
     def _evaluate(self, content: bytes, organization_id: int):
         rows, ignored = parse_csv(content)
@@ -150,9 +155,22 @@ class LeadImportService:
             if principal.principal_type != PrincipalType.USER or principal.actor_id != user_id:
                 raise ImportValidationError("Import identity mismatch.")
             permissions = ActionPermissionService(self.db)
-            permissions.require(principal, ActionPermission.LEAD_IMPORT, organization_id)
-            permissions.require(principal, ActionPermission.LEAD_CREATE, organization_id)
-            return self._confirm(content, token, organization_id, user_id, session_key)
+            decision, authority = permissions.require_with_context(
+                principal, ActionPermission.LEAD_IMPORT, organization_id)
+            import_authorization = capture_authorization_receipt(principal, decision, authority)
+            decision, authority = permissions.require_with_context(
+                principal, ActionPermission.LEAD_CREATE, organization_id)
+            create_authorization = capture_authorization_receipt(principal, decision, authority)
+            result = self._confirm(content, token, organization_id, user_id, session_key)
+            # One accepted batch, including a no-op, has one bounded summary.
+            # Released row savepoints remain provisional until this same root settles.
+            draft = AuditEventBuilder.import_completed(
+                principal, authorization=(import_authorization, create_authorization),
+                details=ImportAuditDetails(result.total, result.imported, result.duplicates, result.invalid),
+                occurred_at=datetime.now(timezone.utc),
+            )
+            self.audit_repository.append(draft)
+            return result
 
     def _confirm(self, content: bytes, token: str, organization_id: int,
                  user_id: int, session_key: str) -> ImportResult:
