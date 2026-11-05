@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,9 @@ from backend.schemas.execution_principal import ExecutionPrincipal
 from backend.services.execution_identity import require_tenant_identity, execution_event
 from backend.schemas.action_permission import ActionPermission, MachineAuthorizationContext
 from backend.services.action_permission_service import ActionPermissionService
+from backend.schemas.audit_event import AuditChangedField, AuditLeadTarget, LifecycleAuditDetails
+from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
+from backend.repositories.audit_repository import AuditRepository
 
 from backend.repositories.lead_repository import LeadRepository
 from backend.schemas.lead_contract import LeadLifecycle
@@ -19,6 +22,7 @@ class LeadLifecycleService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = LeadRepository(db)
+        self.audit_repository = AuditRepository(db)
 
     def update_lifecycle(
         self, principal: ExecutionPrincipal, *, lead_id: int, organization_id: int,
@@ -26,13 +30,41 @@ class LeadLifecycleService:
         last_contacted: datetime | None = None, next_follow_up: datetime | None = None,
         machine_context: MachineAuthorizationContext | None = None,
     ):
-        with service_transaction(self.db):
+        # Authorization reads must not flush pending changes before P1-A can
+        # reject them. Explicit repository flushes remain owned by this root.
+        with service_transaction(self.db), self.db.no_autoflush:
             require_tenant_identity(principal, organization_id)
-            ActionPermissionService(self.db).require(principal, ActionPermission.LEAD_LIFECYCLE_CHANGE,
-                                                     organization_id, machine_context)
+            decision, authority = ActionPermissionService(self.db).require_with_context(
+                principal, ActionPermission.LEAD_LIFECYCLE_CHANGE, organization_id, machine_context)
             execution_event("execution.lead.lifecycle", principal)
-            return self._apply_lifecycle_change(lead_id, organization_id, status, notes,
+            # Preserve invalid-status precedence even for an absent target.
+            if status is not None and status not in self.ALLOWED_STATUSES:
+                raise ValueError(f"Invalid status: {status}")
+            lead = self.repository.get_lead_for_lifecycle_update(lead_id, organization_id)
+            if lead is None:
+                return None
+            fields = (AuditChangedField.STATUS, AuditChangedField.NOTES,
+                      AuditChangedField.LAST_CONTACTED, AuditChangedField.NEXT_FOLLOW_UP)
+            # Values are immutable scalars, never a reference to the managed Lead
+            # or a caller-supplied before image. Only statuses/field names persist.
+            before = tuple(getattr(lead, field.value) for field in fields)
+            authorization = capture_authorization_receipt(principal, decision, authority)
+            lead = self._apply_lifecycle_change(lead.id, lead.organization_id, status, notes,
                                                 last_contacted, next_follow_up)
+            # Compare the actual stored values, including the database's datetime
+            # representation, while retaining the same root-owned acquisition.
+            lead = self.repository.get_lead_for_lifecycle_update(lead.id, lead.organization_id)
+            details = LifecycleAuditDetails(
+                LeadLifecycle(before[0]), LeadLifecycle(lead.status),
+                tuple(field for field, previous in zip(fields, before)
+                      if previous != getattr(lead, field.value)),
+            )
+            draft = AuditEventBuilder.lifecycle_completed(
+                principal, target=AuditLeadTarget(lead.organization_id, lead.id),
+                authorization=authorization, details=details, occurred_at=datetime.now(timezone.utc),
+            )
+            self.audit_repository.append(draft)
+            return lead
 
     def _apply_lifecycle_change(
         self,

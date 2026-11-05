@@ -310,7 +310,10 @@ def test_mutation_helper_and_lifecycle_do_not_duplicate_create_audit(i3a_db):
             lead_id=lead.id, status="Contacted", machine_context=lifecycle_context)
         service(i3a_db)._create_lead_internal("Synthetic helper", "helper@example.invalid", "test", principal.organization_id)
     leads, audits = rows(i3a_db, principal)
-    assert len(leads) == 2 and len(audits) == 1 and audits[0].action == "lead.create"
+    creates = [audit for audit in audits if audit.action == "lead.create"]
+    lifecycle = [audit for audit in audits if audit.action == "lead.lifecycle.change"]
+    assert len(leads) == 2 and len(creates) == len(lifecycle) == 1 and len(audits) == 2
+    assert creates[0].target_id == lifecycle[0].target_id == str(lead.id)
 
 
 def test_e03_r1_canonical_rejection_is_safe_before_authority_or_persistence(i3a_db, monkeypatch, capsys, caplog):
