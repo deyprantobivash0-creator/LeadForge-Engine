@@ -1,6 +1,7 @@
 """Small deterministic runtime ownership inventory; not whole-Python analysis."""
 
 import ast
+import re
 from pathlib import Path, PurePosixPath
 
 import pytest
@@ -9,6 +10,16 @@ import pytest
 INFRASTRUCTURE = {
     "backend/database/transactions.py": {"service_transaction", "rollback_safely"},
     "backend/database/transaction_policy.py": {"start", "bind", "check", "consume", "after_begin", "ensure_physical", "commit", "rollback", "service_savepoint"},
+}
+# G0E owns only recorder-scoped driver/factory mechanics. Public callers still
+# cannot create replacements or settle SQLAlchemy/business transactions.
+REJECTION_STORAGE = "backend/database/rejection_storage.py"
+REJECTION_NATIVE = {
+    ("DeadlineConnection", "commit"): ("psycopg.Connection", "commit", ()),
+    ("DeadlineConnection", "rollback"): ("psycopg.Connection", "rollback", ()),
+    ("DeadlineSQLite", "commit"): ("sqlite3.Connection", "commit", ()),
+    ("DeadlineSQLite", "rollback"): ("sqlite3.Connection", "rollback", ()),
+    ("DeadlineSQLite", "cursor"): ("sqlite3.Connection", "cursor", ("factory",)),
 }
 QUARANTINED = {
     "backend/core/organization.py", "backend/database/init_db.py",
@@ -59,6 +70,85 @@ def violations(source, path):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return node.name
         return None
+    def owner_node(node):
+        while node in parents:
+            node = parents[node]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return node
+        return None
+
+    def top_level_factory(node):
+        function = owner_node(node)
+        return (path == REJECTION_STORAGE and function is not None
+                and function.name == "create_rejection_storage"
+                and parents.get(function) is tree)
+
+    def native_control(node):
+        if path != REJECTION_STORAGE:
+            return False
+        function = owner_node(node)
+        cls = parents.get(function)
+        if (not isinstance(cls, ast.ClassDef) or parents.get(cls) is not tree
+                or len(cls.bases) != 1):
+            return False
+        base = cls.bases[0]
+        if not isinstance(base, ast.Attribute) or not isinstance(base.value, ast.Name):
+            return False
+        base_name = sqlalchemy_aliases.get(base.value.id, base.value.id) + "." + base.attr
+        capability = REJECTION_NATIVE.get((cls.name, function.name))
+        call = node if isinstance(node, ast.Call) else parents.get(node)
+        attr = node.func if isinstance(node, ast.Call) else node
+        if capability is not None:
+            expected_base, operation, arguments = capability
+            return (base_name == expected_base and isinstance(call, ast.Call)
+                and call.func is attr and isinstance(attr, ast.Attribute) and attr.attr == operation
+                and isinstance(attr.value, ast.Call) and isinstance(attr.value.func, ast.Name)
+                and attr.value.func.id == "super" and not attr.value.args and not attr.value.keywords
+                and not call.keywords and len(call.args) == len(arguments)
+                and all(isinstance(arg, ast.Name) and arg.id == expected
+                        for arg, expected in zip(call.args, arguments)))
+        # sqlite3.Cursor.connection is a native property, permitted only in
+        # self.connection.arm(), never as a generic Connection capability.
+        arm = parents.get(node)
+        arm_call = parents.get(arm)
+        return (cls.name == "DeadlineCursor" and base_name == "sqlite3.Cursor"
+            and function.name in {"execute", "executemany"}
+            and isinstance(node, ast.Attribute) and node.attr == "connection"
+            and isinstance(node.value, ast.Name) and node.value.id == "self"
+            and isinstance(arm, ast.Attribute) and arm.attr == "arm"
+            and isinstance(arm_call, ast.Call) and arm_call.func is arm
+            and not arm_call.args and not arm_call.keywords)
+
+    def endpoint_metadata(node):
+        # Read-only Psycopg metadata provenance, never a transaction owner.
+        # Only this exact chain ending in info/closed is permitted. Escaping
+        # the raw object or invoking its methods retains ordinary findings.
+        function = owner_node(node)
+        if (path != REJECTION_STORAGE or function is None
+                or function.name != "_resolved_pg_options" or parents.get(function) is not tree):
+            return False
+        raw = parents.get(node) if isinstance(node, ast.Attribute) and node.attr == "connection" else node
+        if not (isinstance(raw, ast.Attribute) and raw.attr == "driver_connection"
+                and isinstance(raw.value, ast.Attribute) and raw.value.attr == "connection"
+                and isinstance(raw.value.value, ast.Name) and raw.value.value.id == "connection"):
+            return False
+        metadata = parents.get(raw)
+        return (isinstance(metadata, ast.Attribute) and metadata.attr in {"info", "closed"}
+                and not isinstance(parents.get(metadata), ast.Call))
+
+    def raw_sql(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return raw_sql(node.left) + raw_sql(node.right)
+        if isinstance(node, ast.JoinedStr):
+            return " ".join(part.value if isinstance(part, ast.Constant)
+                            and isinstance(part.value, str) else "?" for part in node.values)
+        if isinstance(node, ast.Call) and node.args:
+            symbol = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", "")
+            if aliases.get(symbol, symbol) in {"text", "literal_column"}:
+                return raw_sql(node.args[0])
+        return ""
     result = set()
     aliases = {}
     sqlalchemy_aliases = {}
@@ -109,12 +199,18 @@ def violations(source, path):
                 module, _, symbol = target.rpartition(".")
                 if module in DDL_MODULES and symbol in DDL_CONSTRUCTORS:
                     result.add((path, node.lineno, "TX-DDL", target))
-            if name in CONTROL:
+            if name in CONTROL and not native_control(node):
                 result.add((path, node.lineno, "TX-CONTROL", name))
+            if name in {"execute", "executemany", "executescript"} and node.args:
+                sql = re.sub(r"/\*.*?\*/|--[^\r\n]*", " ", raw_sql(node.args[0]), flags=re.S)
+                if re.search(r"(?:^|;)\s*(?:BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b", sql, re.I):
+                    result.add((path, node.lineno, "TX-CONTROL", "transaction SQL"))
             factory_allowed = (
                 (path == "backend/database/session.py" and owner(node) is None and resolved in {"create_engine", "sessionmaker"})
                 or (path == "backend/database/dependencies.py" and owner(node) == "get_db" and resolved == "SessionLocal")
                 or (path == "backend/repositories/runtime_readiness_repository.py" and owner(node) == "migration_heads" and resolved == "SessionLocal"))
+            factory_allowed = factory_allowed or (top_level_factory(node)
+                and resolved in {"create_engine", "sessionmaker"})
             if resolved in {"create_engine", "sessionmaker", "Session", "SessionLocal"} and not factory_allowed:
                 result.add((path, node.lineno, "TX-FACTORY", resolved))
             if resolved in {"text", "literal_column"}:
@@ -132,9 +228,10 @@ def violations(source, path):
                     result.add((path, node.lineno, "TX-OPAQUE", resolved))
             if name == "execution_options" and any(k.arg in MODES for k in node.keywords):
                 result.add((path, node.lineno, "TX-MODE", name))
-        if isinstance(node, ast.Attribute) and node.attr in RAW:
+        if isinstance(node, ast.Attribute) and node.attr in RAW and not endpoint_metadata(node):
             result.add((path, node.lineno, "TX-RAW", node.attr))
-        if isinstance(node, ast.Attribute) and node.attr in CONTROL:
+        if (isinstance(node, ast.Attribute) and node.attr in CONTROL
+                and not native_control(node) and not endpoint_metadata(node)):
             result.add((path, node.lineno, "TX-CONTROL", node.attr))
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -418,3 +515,103 @@ def test_r3a_existing_opaque_rule_unchanged(symbol):
     assert violations(source, "backend/services/probe.py") == [
         ("backend/services/probe.py", 2, "TX-OPAQUE", symbol),
     ]
+
+
+@pytest.mark.parametrize("source", [
+    "from sqlalchemy import create_engine\ndef create_rejection_storage(bind):\n    return create_engine(bind.url)",
+    "from sqlalchemy.orm import sessionmaker\ndef create_rejection_storage(bind):\n    return sessionmaker(bind=bind)",
+    "class DeadlineConnection(psycopg.Connection):\n    def commit(self):\n        super().commit()",
+    "class DeadlineConnection(psycopg.Connection):\n    def rollback(self):\n        super().rollback()",
+    "class DeadlineSQLite(sqlite3.Connection):\n    def commit(self):\n        super().commit()",
+    "class DeadlineSQLite(sqlite3.Connection):\n    def rollback(self):\n        super().rollback()",
+    "class DeadlineSQLite(sqlite3.Connection):\n    def cursor(self, factory):\n        return super().cursor(factory)",
+    "class DeadlineCursor(sqlite3.Cursor):\n    def execute(self, sql, parameters):\n        self.connection.arm()\n        return super().execute(sql, parameters)",
+    "class DeadlineCursor(sqlite3.Cursor):\n    def executemany(self, sql, parameters):\n        self.connection.arm()\n        return super().executemany(sql, parameters)",
+])
+def test_r1_exact_rejection_capability_is_accepted(source):
+    assert violations(source, REJECTION_STORAGE) == []
+    assert violations(source, "backend/services/other.py")
+
+
+@pytest.mark.parametrize("cls,base,method", [
+    ("DeadlineConnection", "psycopg.Connection", "commit"),
+    ("DeadlineConnection", "psycopg.Connection", "rollback"),
+    ("DeadlineSQLite", "sqlite3.Connection", "commit"),
+    ("DeadlineSQLite", "sqlite3.Connection", "rollback"),
+    ("DeadlineSQLite", "sqlite3.Connection", "cursor"),
+])
+@pytest.mark.parametrize("hostile", [
+    "business.begin_nested()", "Session.commit()", "Session.rollback()",
+    "Connection.commit()", "Connection.rollback()",
+    'conn.exec_driver_sql("COMMIT")', 'conn.exec_driver_sql("ROLLBACK")',
+    'conn.exec_driver_sql("BEGIN")', 'cursor.execute("COMMIT")',
+    'cursor.execute("ROLLBACK")', 'cursor.execute("BEGIN")',
+    'cursor.execute("SAVEPOINT hidden")', 'cursor.execute("RELEASE SAVEPOINT hidden")',
+    'cursor.execute("ROLLBACK TO SAVEPOINT hidden")',
+    'cursor.executescript("SELECT 1; COMMIT")', 'super().execute("COMMIT")',
+    'db.execute(text("ROLLBACK"))', 'cursor.execute("/* comment */ BEGIN")',
+])
+def test_r1_adjacent_hostile_control_in_approved_owner_is_rejected(cls, base, method, hostile):
+    native = "super().cursor(factory)" if method == "cursor" else "super()." + method + "()"
+    source = f"class {cls}({base}):\n    def {method}(self, factory=None):\n        {native}\n        {hostile}"
+    for path in (REJECTION_STORAGE, "backend/services/other.py"):
+        assert any(item[2] == "TX-CONTROL" for item in violations(source, path))
+
+
+@pytest.mark.parametrize("source", [
+    "class Other(psycopg.Connection):\n    def commit(self):\n        super().commit()",
+    "class DeadlineConnection(sqlalchemy.Connection):\n    def commit(self):\n        super().commit()",
+    "class DeadlineConnection(psycopg.Connection):\n    def other(self):\n        super().commit()",
+    "class DeadlineConnection(psycopg.Connection):\n    def commit(self):\n        super().rollback()",
+    "class DeadlineConnection(psycopg.Connection):\n    def commit(self):\n        fn = super().commit",
+    "class DeadlineConnection(psycopg.Connection):\n    def commit(self):\n        super().commit(unapproved)",
+    "class DeadlineCursor(sqlite3.Cursor):\n    def execute(self, sql, parameters):\n        self.connection.commit()",
+])
+def test_r1_wrong_receiver_symbol_or_operation_has_no_native_capability(source):
+    assert any(item[2] == "TX-CONTROL" for item in violations(source, REJECTION_STORAGE))
+
+
+def test_r1_factory_ownership_is_top_level_and_does_not_grant_settlement():
+    nested = "from sqlalchemy import create_engine\ndef other():\n    def create_rejection_storage(bind):\n        return create_engine(bind.url)"
+    assert any(item[2] == "TX-FACTORY" for item in violations(nested, REJECTION_STORAGE))
+    adjacent = "from sqlalchemy import create_engine\ndef create_rejection_storage(bind):\n    engine = create_engine(bind.url)\n    business.commit()"
+    assert violations(adjacent, REJECTION_STORAGE) == [(REJECTION_STORAGE, 4, "TX-CONTROL", "commit")]
+
+
+def test_r1_transaction_words_in_typed_data_are_not_raw_sql():
+    assert violations('db.execute(select(Lead).where(Lead.company == "COMMIT"))', REJECTION_STORAGE) == []
+
+
+def test_r3_endpoint_metadata_read_is_not_transaction_ownership():
+    source = ("def _resolved_pg_options(connection):\n"
+              "    info = connection.connection.driver_connection.info\n"
+              "    if connection.connection.driver_connection.closed: return\n"
+              "    return info.host, info.hostaddr, info.port")
+    assert violations(source, REJECTION_STORAGE) == []
+    assert violations(source, "backend/services/other.py")
+
+
+@pytest.mark.parametrize("hostile", [
+    "connection.commit()", "connection.rollback()", "connection.begin()",
+    "connection.connection.driver_connection.commit()",
+    "connection.connection.driver_connection.rollback()",
+    "connection.connection.driver_connection.cursor()",
+    "raw = connection.connection.driver_connection",
+    "raw = connection.connection.dbapi_connection",
+    'connection.exec_driver_sql("ROLLBACK")', 'cursor.execute("COMMIT")',
+    "connection.connection.driver_connection.autocommit = True",
+])
+def test_r3_metadata_capability_does_not_grant_control_or_raw_escape(hostile):
+    source = ("def _resolved_pg_options(connection):\n"
+              "    info = connection.connection.driver_connection.info\n    " + hostile)
+    assert violations(source, REJECTION_STORAGE)
+
+
+@pytest.mark.parametrize("source", [
+    "def other(connection):\n    info = connection.connection.driver_connection.info",
+    "def outer():\n    def _resolved_pg_options(connection):\n        info = connection.connection.driver_connection.info",
+    "def _resolved_pg_options(connection):\n    info = other.connection.driver_connection.info",
+    "def _resolved_pg_options(connection):\n    info = connection.connection.driver_connection.info()",
+])
+def test_r3_metadata_read_has_exact_scope_and_receiver(source):
+    assert violations(source, REJECTION_STORAGE)

@@ -42,3 +42,20 @@ class AuditRepository:
                               AuditEvent.organization_id == organization_id,
                               AuditEvent.event_id == event_id).limit(1)).one_or_none()
         return AuditEventReceipt(*row) if row is not None else None
+
+    def _get_matching_event(self, draft) -> AuditEventReceipt | None:
+        """Internal scoped reconciliation; reject ID collisions, never upsert.
+
+        Compare the original event, excluding insertion-time recorded_at. The
+        projection is never returned as mutable JSON/ORM state or logged.
+        """
+        values = audit_persistence_values(draft, recorded_at=datetime.now(timezone.utc))
+        row = self.db.execute(select(*AuditEvent.__table__.c).where(
+            AuditEvent.organization_id == values["organization_id"],
+            AuditEvent.event_id == values["event_id"]).limit(1)).mappings().one_or_none()
+        if row is None:
+            return None
+        if any(row[key] != value for key, value in values.items() if key != "recorded_at"):
+            raise AuditValidationError("Audit event identity does not match captured evidence.")
+        return AuditEventReceipt(row["event_id"], row["organization_id"],
+                                 row["occurred_at"], row["recorded_at"])
