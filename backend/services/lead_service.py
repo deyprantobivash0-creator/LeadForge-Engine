@@ -11,14 +11,16 @@ from backend.services.action_permission_service import ActionPermissionService
 from backend.schemas.audit_event import AuditLeadTarget
 from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
 from backend.repositories.audit_repository import AuditRepository
+from backend.services.command_audit import command_audit_boundary
 
 from backend.models.lead import Lead
 from backend.repositories.lead_repository import LeadRepository
 
 
 class LeadService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, *, rejection_recorder=None):
         self.db = db
+        self.rejection_recorder = rejection_recorder
         self.repository = LeadRepository(db)
         self.audit_repository = AuditRepository(db)
 
@@ -26,12 +28,16 @@ class LeadService:
         self, principal: ExecutionPrincipal, *, company: str, email: str,
         source: str, organization_id: int,
         machine_context: MachineAuthorizationContext | None = None,
+        audit_operation=None,
     ) -> Lead:
         try:
-            with service_transaction(self.db):
-                require_tenant_identity(principal, organization_id)
+            with command_audit_boundary(self.db, self.rejection_recorder, audit_operation) as audit, \
+                    service_transaction(self.db):
+                require_tenant_identity(principal, organization_id, audit_operation=audit,
+                                        audit_action=ActionPermission.LEAD_CREATE)
                 decision, authority = ActionPermissionService(self.db).require_with_context(
-                    principal, ActionPermission.LEAD_CREATE, organization_id, machine_context)
+                    principal, ActionPermission.LEAD_CREATE, organization_id, machine_context,
+                    audit_operation=audit, audit_action=ActionPermission.LEAD_CREATE)
                 execution_event("execution.lead.create", principal)
                 lead = self._create_lead_internal(company, email, source, organization_id)
                 draft = AuditEventBuilder.create_completed(

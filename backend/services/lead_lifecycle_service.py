@@ -10,6 +10,7 @@ from backend.services.action_permission_service import ActionPermissionService
 from backend.schemas.audit_event import AuditChangedField, AuditLeadTarget, LifecycleAuditDetails
 from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
 from backend.repositories.audit_repository import AuditRepository
+from backend.services.command_audit import command_audit_boundary
 
 from backend.repositories.lead_repository import LeadRepository
 from backend.schemas.lead_contract import LeadLifecycle
@@ -19,8 +20,9 @@ class LeadLifecycleService:
 
     ALLOWED_STATUSES = {item.value for item in LeadLifecycle}
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, *, rejection_recorder=None):
         self.db = db
+        self.rejection_recorder = rejection_recorder
         self.repository = LeadRepository(db)
         self.audit_repository = AuditRepository(db)
 
@@ -29,13 +31,17 @@ class LeadLifecycleService:
         status: str | None = None, notes: str | None = None,
         last_contacted: datetime | None = None, next_follow_up: datetime | None = None,
         machine_context: MachineAuthorizationContext | None = None,
+        audit_operation=None,
     ):
         # Authorization reads must not flush pending changes before P1-A can
         # reject them. Explicit repository flushes remain owned by this root.
-        with service_transaction(self.db), self.db.no_autoflush:
-            require_tenant_identity(principal, organization_id)
+        with command_audit_boundary(self.db, self.rejection_recorder, audit_operation) as audit, \
+                service_transaction(self.db), self.db.no_autoflush:
+            require_tenant_identity(principal, organization_id, audit_operation=audit,
+                                    audit_action=ActionPermission.LEAD_LIFECYCLE_CHANGE)
             decision, authority = ActionPermissionService(self.db).require_with_context(
-                principal, ActionPermission.LEAD_LIFECYCLE_CHANGE, organization_id, machine_context)
+                principal, ActionPermission.LEAD_LIFECYCLE_CHANGE, organization_id, machine_context,
+                audit_operation=audit, audit_action=ActionPermission.LEAD_LIFECYCLE_CHANGE)
             execution_event("execution.lead.lifecycle", principal)
             # Preserve invalid-status precedence even for an absent target.
             if status is not None and status not in self.ALLOWED_STATUSES:

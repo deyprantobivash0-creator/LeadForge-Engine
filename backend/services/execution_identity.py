@@ -5,7 +5,8 @@ from backend.core.logger import event
 from backend.schemas.execution_principal import ExecutionPrincipal
 
 
-def require_tenant_identity(principal: ExecutionPrincipal, organization_id: int) -> None:
+def require_tenant_identity(principal: ExecutionPrincipal, organization_id: int, *,
+                            audit_operation=None, audit_action=None) -> None:
     if not isinstance(principal, ExecutionPrincipal):
         raise LeadForgeException("Execution identity required.", status_code=400,
                                  error_code="EXECUTION_IDENTITY_REQUIRED")
@@ -21,6 +22,9 @@ def require_tenant_identity(principal: ExecutionPrincipal, organization_id: int)
         raise LeadForgeException("Invalid execution identity.", status_code=400,
                                  error_code="EXECUTION_IDENTITY_INVALID") from None
     if type(organization_id) is not int or verified.organization_id != organization_id:
+        if audit_action is not None:
+            from backend.services.command_audit import capture_tenant_denial
+            capture_tenant_denial(audit_operation, verified, audit_action, organization_id)
         raise LeadForgeException("Execution organization mismatch.", status_code=403,
                                  error_code="EXECUTION_TENANT_MISMATCH")
 

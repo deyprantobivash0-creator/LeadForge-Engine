@@ -33,6 +33,7 @@ class ActionPermissionService:
     def require_with_context(
         self, principal, permission: ActionPermission, organization_id: int,
         machine_context: MachineAuthorizationContext | None = None,
+        *, audit_operation=None, audit_action=None, audit_authorization=(),
     ) -> tuple[PermissionDecision, AuthorizationContext | None]:
         """Return the actual gating decision and its same-time authority snapshot.
 
@@ -51,6 +52,10 @@ class ActionPermissionService:
               correlation_id=principal.correlation_id, permission=decision.permission.value if decision.permission else None,
               permission_result=decision.result.value, reason=decision.reason_code.value)
         if decision.result != PermissionResult.PERMIT:
+            if audit_action is not None:
+                from backend.services.command_audit import capture_permission_denial
+                capture_permission_denial(audit_operation, principal, audit_action, organization_id,
+                                          decision, context, audit_authorization)
             raise LeadForgeException("Action not permitted.", status_code=403,
                                      error_code="ACTION_PERMISSION_DENIED")
         return decision, context

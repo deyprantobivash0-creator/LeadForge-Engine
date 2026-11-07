@@ -22,6 +22,7 @@ from backend.services.execution_identity import require_tenant_identity
 from backend.schemas.audit_event import ImportAuditDetails
 from backend.services.audit_event_builder import AuditEventBuilder, capture_authorization_receipt
 from backend.repositories.audit_repository import AuditRepository
+from backend.services.command_audit import command_audit_boundary
 
 from backend.repositories.lead_import_repository import LeadImportRepository
 from backend.schemas.import_schema import ImportPreview, ImportResult, ImportRow, ImportSummary
@@ -108,8 +109,9 @@ def parse_csv(content: bytes) -> tuple[list[ImportRow], list[str]]:
 
 
 class LeadImportService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, *, rejection_recorder=None):
         self.db = db
+        self.rejection_recorder = rejection_recorder
         self.repository = LeadImportRepository(db)
         self.audit_repository = AuditRepository(db)
 
@@ -148,18 +150,23 @@ class LeadImportService:
 
     @operation("import.confirm")
     def confirm(self, principal: ExecutionPrincipal, content: bytes, token: str,
-                organization_id: int, user_id: int, session_key: str) -> ImportResult:
-        with service_transaction(self.db):
-            require_tenant_identity(principal, organization_id)
+                organization_id: int, user_id: int, session_key: str, *, audit_operation=None) -> ImportResult:
+        with command_audit_boundary(self.db, self.rejection_recorder, audit_operation) as audit, \
+                service_transaction(self.db):
+            require_tenant_identity(principal, organization_id, audit_operation=audit,
+                                    audit_action=ActionPermission.LEAD_IMPORT)
             # This browser/session-bound operation is not machine ingestion.
             if principal.principal_type != PrincipalType.USER or principal.actor_id != user_id:
                 raise ImportValidationError("Import identity mismatch.")
             permissions = ActionPermissionService(self.db)
             decision, authority = permissions.require_with_context(
-                principal, ActionPermission.LEAD_IMPORT, organization_id)
+                principal, ActionPermission.LEAD_IMPORT, organization_id,
+                audit_operation=audit, audit_action=ActionPermission.LEAD_IMPORT)
             import_authorization = capture_authorization_receipt(principal, decision, authority)
             decision, authority = permissions.require_with_context(
-                principal, ActionPermission.LEAD_CREATE, organization_id)
+                principal, ActionPermission.LEAD_CREATE, organization_id,
+                audit_operation=audit, audit_action=ActionPermission.LEAD_IMPORT,
+                audit_authorization=(import_authorization,))
             create_authorization = capture_authorization_receipt(principal, decision, authority)
             result = self._confirm(content, token, organization_id, user_id, session_key)
             # One accepted batch, including a no-op, has one bounded summary.
