@@ -34,6 +34,8 @@ from backend.services.lead_lifecycle_service import (
     LeadLifecycleService,
 )
 from backend.services.lead_service import LeadService
+from backend.schemas.opportunity_decision import OpportunityDecision
+from backend.services.opportunity_decision_service import OpportunityDecisionService
 from backend.services.lead_processing_service import (
     LeadProcessingService, LeadNotFound, ProcessingConflict, ProcessingFailure,
 )
@@ -231,6 +233,18 @@ def update_lead_lifecycle(
             detail="Lead not found",
         )
 
+    return result
+
+
+@router.get("/{lead_id}/opportunity-decision", response_model=OpportunityDecision)
+def get_opportunity_decision(
+    lead_id: LeadID,
+    db: Session = Depends(get_db),
+    context: AuthorizedOrganizationContext = Depends(get_current_organization),
+):
+    result = OpportunityDecisionService(db).get_decision(lead_id, context.organization.id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
     return result
 
 
