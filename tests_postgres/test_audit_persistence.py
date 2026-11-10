@@ -84,21 +84,27 @@ def test_postgres_rejects_naive_timestamp(audit_pg_engine, field):
 def test_postgres_populated_downgrade_destroys_only_disposable_evidence_and_reupgrade(pg_database):
     from backend.core.config import settings, secret_value
     assert secret_value(settings.DATABASE_URL) == pg_database["url"]
-    engine = create_engine(pg_database["url"])
-    with Session(engine) as db:
-        db.add(AuditEvent(**audit_values()))
-        db.commit()
-    before_tables = set(inspect(engine).get_table_names())
-    engine.dispose()
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
-    command.downgrade(config, PREVIOUS)
-    engine = create_engine(pg_database["url"])
-    assert set(inspect(engine).get_table_names()) == before_tables - {"audit_events"}
-    engine.dispose()
-    command.upgrade(config, HEAD)
-    engine = create_engine(pg_database["url"])
-    assert_schema(engine)
-    with engine.connect() as connection:
-        assert connection.scalar(text("SELECT COUNT(*) FROM audit_events")) == 0
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == HEAD
-    engine.dispose()
+    # This contract tests the original audit increment, not later migrations.
+    command.downgrade(config, HEAD)
+    try:
+        engine = create_engine(pg_database["url"])
+        with Session(engine) as db:
+            db.add(AuditEvent(**audit_values()))
+            db.commit()
+        before_tables = set(inspect(engine).get_table_names())
+        engine.dispose()
+        command.downgrade(config, PREVIOUS)
+        engine = create_engine(pg_database["url"])
+        assert set(inspect(engine).get_table_names()) == before_tables - {"audit_events"}
+        engine.dispose()
+        command.upgrade(config, HEAD)
+        engine = create_engine(pg_database["url"])
+        assert_schema(engine)
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT COUNT(*) FROM audit_events")) == 0
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == HEAD
+        engine.dispose()
+    finally:
+        engine.dispose()
+        command.upgrade(config, "head")

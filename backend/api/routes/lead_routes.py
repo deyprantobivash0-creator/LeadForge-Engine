@@ -1,5 +1,6 @@
 from math import ceil
 from typing import Annotated, Literal
+from pydantic import UUID4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
@@ -36,6 +37,8 @@ from backend.services.lead_lifecycle_service import (
 from backend.services.lead_service import LeadService
 from backend.schemas.opportunity_decision import OpportunityDecision
 from backend.services.opportunity_decision_service import OpportunityDecisionService
+from backend.schemas.decision_ledger import DecisionLedgerHistory, DecisionLedgerRecord, RecordDecisionRequest
+from backend.services.decision_ledger_service import DecisionLedgerService
 from backend.services.lead_processing_service import (
     LeadProcessingService, LeadNotFound, ProcessingConflict, ProcessingFailure,
 )
@@ -245,6 +248,46 @@ def get_opportunity_decision(
     result = OpportunityDecisionService(db).get_decision(lead_id, context.organization.id)
     if result is None:
         raise HTTPException(status_code=404, detail="Lead not found")
+    return result
+
+
+@router.post("/{lead_id}/opportunity-decisions", response_model=DecisionLedgerRecord, status_code=201)
+def record_opportunity_decision(
+    lead_id: LeadID,
+    payload: RecordDecisionRequest | None = None,
+    db: Session = Depends(get_db),
+    principal: ExecutionPrincipal = Depends(require_user_principal),
+):
+    result = DecisionLedgerService(db).record(principal, lead_id, principal.organization_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return result
+
+
+@router.get("/{lead_id}/opportunity-decisions", response_model=DecisionLedgerHistory)
+def get_opportunity_decisions(
+    lead_id: LeadID,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100000000),
+    db: Session = Depends(get_db),
+    context: AuthorizedOrganizationContext = Depends(get_current_organization),
+):
+    result = DecisionLedgerService(db).history(lead_id, context.organization.id, limit, offset)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return result
+
+
+@router.get("/{lead_id}/opportunity-decisions/{decision_id}", response_model=DecisionLedgerRecord)
+def get_recorded_opportunity_decision(
+    lead_id: LeadID,
+    decision_id: UUID4,
+    db: Session = Depends(get_db),
+    context: AuthorizedOrganizationContext = Depends(get_current_organization),
+):
+    result = DecisionLedgerService(db).get(lead_id, context.organization.id, decision_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Decision not found")
     return result
 
 

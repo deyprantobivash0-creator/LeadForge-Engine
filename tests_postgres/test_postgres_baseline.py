@@ -143,7 +143,7 @@ def test_fresh_migration_matches_mapped_tables(pg_database):
         expected_indexes = {index.name for index in table.indexes}
         assert expected_indexes.issubset(actual_indexes), table.name
     with engine.connect() as connection:
-        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "5d59e6268f43"
+        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "31e5e19bd71f"
     analysis_links = inspector.get_foreign_keys("lead_analysis")
     assert any(link["referred_table"] == "leads"
                and link["constrained_columns"] == ["organization_id", "lead_id"]

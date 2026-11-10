@@ -6,6 +6,7 @@ from backend.models.user import User
 from backend.models.organization_membership import OrganizationMembership
 from backend.models.auth_session import AuthSession
 from backend.models.audit_event import AuditEvent
+from backend.models.decision_ledger import DecisionLedger
 
 __all__ = [
     "Organization",
@@ -16,4 +17,5 @@ __all__ = [
     "OrganizationMembership",
     "AuthSession",
     "AuditEvent",
+    "DecisionLedger",
 ]

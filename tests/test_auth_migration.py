@@ -11,7 +11,7 @@ from backend.core.config import settings
 
 PRE_AUTH = "24b5b28b09b7"
 AUTH = "c3b2a1d0e9f8"
-HEAD = "5d59e6268f43"
+HEAD = "31e5e19bd71f"
 ROOT = Path(__file__).resolve().parents[1]
 
 
