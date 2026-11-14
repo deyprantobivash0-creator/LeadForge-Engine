@@ -1,5 +1,6 @@
 import { Inbox } from "lucide-react";
 
+/** @param {{title:import('react').ReactNode,subtitle?:import('react').ReactNode}} props */
 export default function EmptyState({
   title,
   subtitle,

@@ -1,0 +1,31 @@
+.revenue-brain { min-width: 0; margin-top: 24px; color: var(--lf-text, #e9f1f8); overflow-wrap: anywhere; }
+.revenue-brain header h3 { margin: 6px 0 10px; font-size: 22px; letter-spacing: -.03em; }
+.revenue-brain p, .revenue-brain li { line-height: 1.6; font-size: 13px; }
+.revenue-brain p { margin: 8px 0; }
+.revenue-brain header p, .revenue-brain .decision-context { color: var(--lf-secondary, #b6c6d8); }
+.decision-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.revenue-brain .lf-button { min-height: 42px; max-width: 100%; white-space: normal; font-size: 12px; }
+.decision-card { min-width: 0; margin-top: 16px; padding: 16px; background: var(--lf-card, #152335); border: 1px solid var(--lf-border, #405366); border-radius: var(--lf-radius-md, 14px); }
+.decision-card h4 { margin: 0 0 12px; font-size: 16px; }
+.decision-card h5 { margin: 16px 0 8px; font-size: 13px; }
+.decision-marker { display: inline-block; padding: 4px 8px; border: 1px solid var(--lf-border, #405366); border-radius: 6px; color: var(--lf-accent, #93e0dc); }
+.decision-metrics, .decision-deltas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; margin: 16px 0; }
+.decision-metrics dt, .decision-deltas dt { color: var(--lf-secondary, #b6c6d8); font-size: 12px; }
+.decision-metrics dd { margin: 4px 0 0; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.decision-metrics dd small { margin-left: 3px; font-size: 12px; font-weight: 400; color: var(--lf-secondary, #b6c6d8); }
+.decision-deltas dd { margin: 4px 0 0; font-size: 13px; font-weight: 650; }
+.decision-direction { font-weight: 700; }
+.decision-direction small { font-weight: 400; color: var(--lf-secondary, #b6c6d8); }
+.direction-improved { color: #a7e8c1; }.direction-declined { color: #ffc1c1; }.direction-mixed { color: #f5d795; }
+.revenue-brain summary { min-height: 36px; padding: 8px 0; color: var(--lf-accent, #93e0dc); font-size: 13px; cursor: pointer; }
+.revenue-brain summary:focus-visible { outline: 3px solid var(--lf-accent, #93e0dc); outline-offset: 3px; }
+.revenue-brain ul { padding-left: 20px; }.revenue-brain li + li { margin-top: 8px; }
+.decision-evidence { list-style: none; padding: 0 !important; }
+.decision-evidence li { padding: 12px; border-left: 2px solid var(--lf-border, #405366); background: #09182766; }
+.decision-evidence span { display: block; color: var(--lf-secondary, #b6c6d8); margin-top: 4px; font-size: 12px; }
+.decision-records { list-style: none; padding: 0; margin: 0; }
+.decision-records > li { padding: 14px 0; border-top: 1px solid var(--lf-border, #405366); }
+.decision-records > li:first-child { border-top: 0; }.decision-records h5 { margin-top: 0; }
+.decision-loading { min-height: 180px; display: flex; align-items: center; justify-content: center; color: var(--lf-secondary, #b6c6d8); }
+.decision-empty { padding: 16px 0; }
+@media (max-width: 420px) { .decision-card { padding: 12px; }.decision-actions { flex-direction: column; }.decision-actions button { width: 100%; }.decision-metrics dd { font-size: 22px; } }

@@ -1,5 +1,11 @@
 import PriorityBadge from "../dashboard/PriorityBadge";
 
+/**
+ * @typedef {Pick<import('../../types/api').Lead, 'id'|'company'|'email'|'source'|'lead_score'|'priority'|'status'|'next_follow_up'>} LeadRowData
+ * @typedef {{lead:LeadRowData,onSelect?:((id:LeadRowData['id'])=>void|Promise<void>)|null}} LeadRowProps
+ */
+
+/** @param {LeadRowData['next_follow_up']} value */
 function formatDate(value) {
   if (!value) {
     return "—";
@@ -18,6 +24,7 @@ function formatDate(value) {
   });
 }
 
+/** @param {number} score */
 function getScoreClass(score) {
   if (score >= 80) {
     return "score-high";
@@ -30,6 +37,7 @@ function getScoreClass(score) {
   return "score-low";
 }
 
+/** @param {LeadRowProps} props */
 function LeadRow({ lead, onSelect }) {
   const score =
     typeof lead.lead_score === "number"

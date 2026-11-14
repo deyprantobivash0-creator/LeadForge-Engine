@@ -2,40 +2,49 @@ import { useEffect, useRef, useState } from "react";
 import { leadFields, apiFieldErrors } from "../../utils/validation";
 import { createLead } from "../../services/leadService";
 
+/** @param {{onClose:()=>void,onCreated:()=>void}} props */
 export default function AddLeadDialog({ onClose, onCreated }) {
-  const dialogRef = useRef(null);
-  const companyRef = useRef(null);
+  const dialogRef = useRef(/** @type {HTMLDivElement|null} */ (null));
+  const companyRef = useRef(/** @type {HTMLInputElement|null} */ (null));
   const savingRef = useRef(false);
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [source, setSource] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [fields, setFields] = useState({});
+  const [fields, setFields] = useState(/** @type {import('../../utils/validation').LeadFieldErrors} */ ({}));
 
   useEffect(() => {
     const previousFocus = document.activeElement;
     companyRef.current?.focus();
+    /** @param {KeyboardEvent} event */
     function handleKey(event) {
       if (event.key === "Escape" && !savingRef.current) { event.preventDefault(); onClose(); }
       if (event.key !== "Tab") return;
-      const controls = [...dialogRef.current.querySelectorAll("button:not(:disabled), input:not(:disabled)")];
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const controls = [...dialog.querySelectorAll("button:not(:disabled), input:not(:disabled)")];
       const first = controls[0];
       const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); if (last instanceof HTMLElement) last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); if (first instanceof HTMLElement) first.focus(); }
     }
     document.addEventListener("keydown", handleKey);
-    return () => { document.removeEventListener("keydown", handleKey); previousFocus?.focus?.(); };
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (previousFocus && "focus" in previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
+    };
   }, [onClose]);
 
+  /** @param {import('react').FormEvent<HTMLFormElement>} event @returns {Promise<void>} */
   async function submit(event) {
     event.preventDefault();
     if (savingRef.current) return;
     const invalid = leadFields({ company, email, source });
     setFields(invalid);
     if (Object.keys(invalid).length) {
-      dialogRef.current.querySelector(`#new-lead-${Object.keys(invalid)[0]}`)?.focus();
+      const invalidField = dialogRef.current?.querySelector(`#new-lead-${Object.keys(invalid)[0]}`);
+      if (invalidField instanceof HTMLElement) invalidField.focus();
       return;
     }
     savingRef.current = true;
@@ -46,7 +55,8 @@ export default function AddLeadDialog({ onClose, onCreated }) {
       onCreated();
     } catch (failure) {
       setFields(apiFieldErrors(failure));
-      setError(failure.status === 409 ? "A lead with this email already exists in this workspace." : failure.message);
+      if (failure === null || (typeof failure !== "object" && typeof failure !== "function") || !("message" in failure) || typeof failure.message !== "string") throw failure;
+      setError("status" in failure && failure.status === 409 ? "A lead with this email already exists in this workspace." : failure.message);
     } finally {
       savingRef.current = false;
       setSaving(false);

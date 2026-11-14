@@ -1,3 +1,4 @@
+/** @param {{children?:import('react').ReactNode}} props */
 function PageContainer({ children }) {
   return (
     <main className="page-container" id="main-content" tabIndex={-1}>

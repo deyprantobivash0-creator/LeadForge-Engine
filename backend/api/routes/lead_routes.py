@@ -39,6 +39,8 @@ from backend.schemas.opportunity_decision import OpportunityDecision
 from backend.services.opportunity_decision_service import OpportunityDecisionService
 from backend.schemas.decision_ledger import DecisionLedgerHistory, DecisionLedgerRecord, RecordDecisionRequest
 from backend.services.decision_ledger_service import DecisionLedgerService
+from backend.schemas.decision_change import DecisionChangeResponse
+from backend.services.decision_comparison_service import DecisionComparisonService
 from backend.services.lead_processing_service import (
     LeadProcessingService, LeadNotFound, ProcessingConflict, ProcessingFailure,
 )
@@ -246,6 +248,18 @@ def get_opportunity_decision(
     context: AuthorizedOrganizationContext = Depends(get_current_organization),
 ):
     result = OpportunityDecisionService(db).get_decision(lead_id, context.organization.id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return result
+
+
+@router.get("/{lead_id}/opportunity-decision/change", response_model=DecisionChangeResponse)
+def get_opportunity_decision_change(
+    lead_id: LeadID,
+    db: Session = Depends(get_db),
+    context: AuthorizedOrganizationContext = Depends(get_current_organization),
+):
+    result = DecisionComparisonService(db).get_change(lead_id, context.organization.id)
     if result is None:
         raise HTTPException(status_code=404, detail="Lead not found")
     return result

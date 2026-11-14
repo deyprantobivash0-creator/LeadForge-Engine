@@ -25,6 +25,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Change Password", exact: true })).toBeVisible();
 });
 
+/** @param {import('@playwright/test').Page} page @param {string} [confirmation] */
 async function fill(page, confirmation = next) {
   await page.getByLabel("Current password", { exact: true }).fill(current);
   await page.getByLabel("New password", { exact: true }).fill(next);
@@ -49,8 +50,10 @@ test("Security fields and confirmation validation block requests", async ({ page
 });
 
 test("Submission carries CSRF, blocks duplicates, clears fields and retains Settings", async ({ page }) => {
-  let release;
-  const pending = new Promise(resolve => { release = resolve; });
+  /** @type {{release?:()=>void}} */
+  const releaseGate = {};
+  /** @type {Promise<void>} */
+  const pending = new Promise(resolve => { releaseGate.release = resolve; });
   let requests = 0;
   await page.route("**/api/auth/change-password", async route => {
     requests++;
@@ -68,7 +71,8 @@ test("Submission carries CSRF, blocks duplicates, clears fields and retains Sett
   await page.locator(".settings-password-form").evaluate(form => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   });
-  release();
+  if (!releaseGate.release) throw new Error("Pending request release callback was not initialized.");
+  releaseGate.release();
   await expect(page.getByRole("status")).toHaveText("Password changed successfully.");
   expect(requests).toBe(1);
   for (const label of ["Current password", "New password", "Confirm new password"]) await expect(page.getByLabel(label, { exact: true })).toHaveValue("");

@@ -116,7 +116,7 @@ def frontend():
     npm = shutil.which("npm.cmd") or shutil.which("npm")
     if not npm:
         raise RuntimeError("Node 22.22.2 and npm are required on PATH")
-    for args in (["ci"], ["run", "lint"], ["run", "build"]):
+    for args in (["ci"], ["run", "lint"], ["run", "typecheck"], ["run", "build"]):
         run([npm, *args], cwd=ROOT / "frontend")
 
 

@@ -7,26 +7,42 @@ import { getLeads, searchLeads } from "../services/leadService";
 import "../styles/leads-workspace.css";
 
 const PAGE_SIZE = 20;
+/**
+ * @typedef {{status:import('../types/api').LeadLifecycle|'',priority:import('../types/api').LeadPriority|'',processing_status:import('../types/api').ProcessingStatus|'',analysis_state:'analyzed'|'unanalyzed'|''}} LeadFilters
+ * @typedef {'company'|'email'} SearchField
+ * @typedef {LeadFilters & {page:number,page_size:number,source:string,searchField:SearchField,searchTerm:string}} LeadQuery
+ * @typedef {{key:string,data:import('../types/api').LeadPage|null,error:string}} LeadResponseState
+ */
+/** @type {LeadFilters} */
 const initialFilters = { status: "", priority: "", processing_status: "", analysis_state: "" };
+/** @type {import('../types/api').LeadLifecycle[]} */
 const lifecycleOptions = ["New", "Qualified", "Contacted", "Meeting", "Won", "Lost"];
+/** @type {import('../types/api').LeadPriority[]} */
 const priorityOptions = ["Hot", "Warm", "Cold"];
+/** @type {import('../types/api').ProcessingStatus[]} */
 const processingOptions = ["pending", "processing", "completed", "failed"];
+/** @type {{[Key in keyof LeadFilters]: readonly Exclude<LeadFilters[Key], ''>[]}} */
+const filterOptions = { status: lifecycleOptions, priority: priorityOptions, processing_status: processingOptions, analysis_state: ["analyzed", "unanalyzed"] };
 
+/** @param {{kind:'lifecycle',value:import('../types/api').LeadLifecycle}|{kind:'priority',value:import('../types/api').LeadPriority}|{kind:'processing',value:import('../types/api').ProcessingStatus}} props */
 function Badge({ value, kind }) {
   if (!value) return <span className="lead-workspace-muted">—</span>;
   const label = kind === "processing" ? value[0].toUpperCase() + value.slice(1) : value;
   return <span className={`lead-workspace-badge lead-workspace-badge-${kind}-${value.toLowerCase()}`}>{kind === "processing" && value === "processing" && <span className="lead-processing-dot" aria-hidden="true" />}{label}</span>;
 }
 
+/** @param {{analysis:import('../types/api').LeadListItem['current_analysis']}} props */
 function Score({ analysis }) {
   if (!analysis) return <span className="lead-workspace-muted">Not analyzed</span>;
   return <span className="lead-workspace-score"><strong>{analysis.lead_score}</strong><span>/100</span></span>;
 }
 
+/** @param {{lead:import('../types/api').LeadListItem,onOpen:(id:number)=>void}} props */
 function LeadActions({ lead, onOpen }) {
   return <div className="lead-workspace-actions"><button type="button" onClick={() => onOpen(lead.id)} aria-label={`Open ${lead.company} details`}>Open Lead</button><Link to={`/ai/${lead.id}`} aria-label={`View intelligence for ${lead.company}`}>Intelligence <ArrowRight size={14} aria-hidden="true" /></Link></div>;
 }
 
+/** @param {{leads:import('../types/api').LeadListItem[],onOpen:(id:number)=>void}} props */
 function LeadTable({ leads, onOpen }) {
   return <div className="lead-workspace-desktop"><table className="lead-workspace-table"><thead><tr><th scope="col">Company</th><th scope="col">Contact</th><th scope="col">Lifecycle</th><th scope="col">AI score</th><th scope="col">Priority</th><th scope="col">Processing</th><th scope="col">Source</th><th scope="col">Actions</th></tr></thead><tbody>
     {leads.map((lead) => <tr key={lead.id}>
@@ -42,6 +58,7 @@ function LeadTable({ leads, onOpen }) {
   </tbody></table></div>;
 }
 
+/** @param {{leads:import('../types/api').LeadListItem[],onOpen:(id:number)=>void}} props */
 function LeadCards({ leads, onOpen }) {
   return <div className="lead-workspace-mobile">{leads.map((lead) => <article className="lead-mobile-card" key={lead.id}>
     <div className="lead-mobile-identity"><button type="button" onClick={() => onOpen(lead.id)}>{lead.company}</button><a href={`mailto:${lead.email}`}>{lead.email}</a></div>
@@ -57,7 +74,7 @@ function LoadingRows() {
 }
 
 export default function Leads() {
-  const [searchField, setSearchField] = useState("company");
+  const [searchField, setSearchField] = useState(/** @type {SearchField} */ ("company"));
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sourceInput, setSourceInput] = useState("");
@@ -65,9 +82,9 @@ export default function Leads() {
   const [filters, setFilters] = useState(initialFilters);
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
-  const [response, setResponse] = useState(null);
+  const [response, setResponse] = useState(/** @type {LeadResponseState|null} */ (null));
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(/** @type {number|null} */ (null));
   const [showAdd, setShowAdd] = useState(false);
   const [notice, setNotice] = useState("");
   const closeAdd = useCallback(() => setShowAdd(false), []);
@@ -85,6 +102,8 @@ export default function Leads() {
   const queryKey = JSON.stringify({ page, page_size: PAGE_SIZE, ...filters, source: sourceTerm, searchField, searchTerm });
   useEffect(() => {
     let active = true;
+    // This key is serialized from this page's typed filter/search state.
+    /** @type {LeadQuery} */
     const { searchField: field, searchTerm: term, ...params } = JSON.parse(queryKey);
     const request = term ? searchLeads({ ...params, [field]: term }) : getLeads(params);
     request.then((data) => { if (active) setResponse({ key: queryKey, data, error: "" }); })
@@ -93,7 +112,9 @@ export default function Leads() {
     return () => { active = false; };
   }, [queryKey, revision]);
 
+  /** @param {keyof LeadFilters} name @param {string} value */
   function updateFilter(name, value) {
+    if (value !== "" && !filterOptions[name].some((option) => option === value)) return;
     setFilters((previous) => ({ ...previous, [name]: value }));
     setPage(1);
   }
@@ -126,7 +147,7 @@ export default function Leads() {
     {notice && <p className="lead-workspace-notice" role="status">{notice}</p>}
     <section className="lead-workspace-toolbar" aria-label="Search and filter leads">
       <form className="lead-workspace-search" role="search" onSubmit={(event) => { event.preventDefault(); setSearchTerm(searchInput.trim()); setPage(1); }}><label htmlFor="lead-search-input">Search leads</label><div className="lead-search-control"><Search size={18} aria-hidden="true" /><input id="lead-search-input" maxLength={searchField === "email" ? 254 : 200} value={searchInput} onChange={(event) => { setSearchInput(event.target.value); setPage(1); }} placeholder={searchField === "company" ? "Search company" : "Search email"} />{searchInput && <button type="button" aria-label="Clear search" onClick={() => { setSearchInput(""); setSearchTerm(""); setPage(1); }}><X size={16} aria-hidden="true" /></button>}</div></form>
-      <label className="lead-workspace-filter lead-search-field">Search field<select value={searchField} onChange={(event) => { setSearchField(event.target.value); setPage(1); }}><option value="company">Company</option><option value="email">Email</option></select></label>
+      <label className="lead-workspace-filter lead-search-field">Search field<select value={searchField} onChange={(event) => { const value = event.currentTarget.value; if (value === "company" || value === "email") setSearchField(value); setPage(1); }}><option value="company">Company</option><option value="email">Email</option></select></label>
       <label className="lead-workspace-filter">Lifecycle<select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="">All stages</option>{lifecycleOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
       <label className="lead-workspace-filter">Priority<select value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}><option value="">All priorities</option>{priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
       <label className="lead-workspace-filter">Processing<select value={filters.processing_status} onChange={(event) => updateFilter("processing_status", event.target.value)}><option value="">All states</option>{processingOptions.map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</select></label>
@@ -139,8 +160,8 @@ export default function Leads() {
       {initialLoading && <LoadingRows />}
       {error && <div className="lead-workspace-error" role="alert"><strong>Could not load leads.</strong><p>{error}</p><button type="button" className="lf-button lf-button-secondary" onClick={refresh}>Try again</button></div>}
       {data?.items?.length === 0 && !error && <div className="lead-workspace-empty"><strong>{activeFilters ? "No leads match these criteria." : "No leads in this workspace yet."}</strong><p>{activeFilters ? "Try another search or reset your filters." : "Add your first lead to begin managing this workspace."}</p>{activeFilters ? <button type="button" className="lf-button lf-button-secondary" onClick={resetFilters}>Reset filters</button> : <button type="button" className="lf-button lf-button-primary" onClick={() => setShowAdd(true)}>Add Lead</button>}</div>}
-      {data?.items?.length > 0 && <><LeadTable leads={data.items} onOpen={setSelectedId} /><LeadCards leads={data.items} onOpen={setSelectedId} /></>}
-      {data?.total > 0 && <nav className="lead-workspace-pagination" aria-label="Lead pages"><span>Showing {firstResult}–{lastResult} of {data.total}</span><div><button type="button" className="lf-button lf-button-secondary" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {data.page} of {data.pages}</span><button type="button" className="lf-button lf-button-secondary" disabled={page >= data.pages} onClick={() => setPage((value) => value + 1)}>Next</button></div></nav>}
+      {data && data.items?.length > 0 && <><LeadTable leads={data.items} onOpen={setSelectedId} /><LeadCards leads={data.items} onOpen={setSelectedId} /></>}
+      {data && data.total > 0 && <nav className="lead-workspace-pagination" aria-label="Lead pages"><span>Showing {firstResult}–{lastResult} of {data.total}</span><div><button type="button" className="lf-button lf-button-secondary" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {data.page} of {data.pages}</span><button type="button" className="lf-button lf-button-secondary" disabled={page >= data.pages} onClick={() => setPage((value) => value + 1)}>Next</button></div></nav>}
     </section>
     {selectedId && <LeadDetails leadId={selectedId} onClose={closeDetails} onSaved={refresh} />}
     {showAdd && <AddLeadDialog onClose={closeAdd} onCreated={leadCreated} />}

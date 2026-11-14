@@ -9,7 +9,17 @@ import "./styles/theme.css";
 import "./styles/tokens.css";
 import "./styles/release-hardening.css";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const rootContainer = document.getElementById("root");
+if (rootContainer === null) {
+  // Preserve the installed ReactDOM failure in development and production.
+  throw new Error(
+    import.meta.env.PROD
+      ? "Minified React error #299; visit https://react.dev/errors/299 for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+      : "Target container is not a DOM element."
+  );
+}
+
+ReactDOM.createRoot(rootContainer).render(
   <React.StrictMode>
     <ReleaseErrorBoundary><App /></ReleaseErrorBoundary>
   </React.StrictMode>

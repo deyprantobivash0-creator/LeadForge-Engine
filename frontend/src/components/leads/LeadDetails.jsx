@@ -1,18 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getLead, processLead, updateLeadLifecycle } from "../../services/leadService";
+import RevenueDecisionHistory from "./RevenueDecisionHistory";
 
+/** @type {import('../../types/api').LeadLifecycle[]} */
 const statuses = ["New", "Qualified", "Contacted", "Meeting", "Won", "Lost"];
+/** @param {string|null|undefined} value */
 const dateInput = (value) => value ? value.slice(0, 10) : "";
+/** @param {string} value */
 const dateValue = (value) => value ? `${value}T00:00:00` : null;
 
+/** @param {unknown} result @returns {string|null} */
+function analysisSummaryText(result) {
+  if (result === null || typeof result !== "object" || !("company" in result)) return null;
+  const company = result.company;
+  if (company === null || typeof company !== "object" || !("summary" in company)) return null;
+  const summary = company.summary;
+  return typeof summary === "string" && summary.trim().length > 0 ? summary : null;
+}
+
+/** @param {{leadId:import('../../types/api').ID,onClose:()=>void,onSaved?:()=>void}} props */
 export default function LeadDetails({ leadId, onClose, onSaved }) {
-  const panelRef = useRef(null);
-  const closeRef = useRef(null);
+  const panelRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const closeRef = useRef(/** @type {HTMLButtonElement|null} */ (null));
   const mutationRef = useRef(false);
-  const [lead, setLead] = useState(null);
-  const [intelligence, setIntelligence] = useState(null);
-  const [status, setStatus] = useState("New");
+  const [lead, setLead] = useState(/** @type {import('../../types/api').LeadDetail|null} */ (null));
+  const [intelligence, setIntelligence] = useState(/** @type {import('../../types/api').Analysis|null} */ (null));
+  const [status, setStatus] = useState(/** @type {import('../../types/api').LeadLifecycle} */ ("New"));
   const [notes, setNotes] = useState("");
   const [lastContacted, setLastContacted] = useState("");
   const [nextFollowUp, setNextFollowUp] = useState("");
@@ -27,18 +41,24 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
   useEffect(() => {
     const previousFocus = document.activeElement;
     closeRef.current?.focus();
+    /** @param {KeyboardEvent} event */
     function handleKey(event) {
       if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
       if (event.key !== "Tab") return;
-      const controls = [...panelRef.current.querySelectorAll("a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")];
+      const panel = panelRef.current;
+      if (!panel) return;
+      const controls = [...panel.querySelectorAll("a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary")];
       if (!controls.length) return;
       const first = controls[0];
       const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); if (last instanceof HTMLElement || last instanceof SVGElement) last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); if (first instanceof HTMLElement || first instanceof SVGElement) first.focus(); }
     }
     document.addEventListener("keydown", handleKey);
-    return () => { document.removeEventListener("keydown", handleKey); previousFocus?.focus?.(); };
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (previousFocus && "focus" in previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
+    };
   }, [onClose]);
 
   useEffect(() => {
@@ -57,6 +77,7 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
     return () => { active = false; };
   }, [leadId, revision]);
 
+  /** @param {import('react').FormEvent<HTMLFormElement>} event @returns {Promise<void>} */
   async function save(event) {
     event.preventDefault();
     if (mutationRef.current) return;
@@ -71,6 +92,7 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
       setRevision((value) => value + 1);
       onSaved?.();
     } catch (failure) {
+      if (failure === null || (typeof failure !== "object" && typeof failure !== "function") || !("message" in failure) || typeof failure.message !== "string") throw failure;
       setMutationError(failure.message);
     } finally {
       mutationRef.current = false;
@@ -89,12 +111,15 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
       setRevision((value) => value + 1);
       onSaved?.();
     } catch (failure) {
+      if (failure === null || (typeof failure !== "object" && typeof failure !== "function") || !("message" in failure) || typeof failure.message !== "string") throw failure;
       setMutationError(failure.message);
     } finally {
       mutationRef.current = false;
       setProcessing(false);
     }
   }
+
+  const summary = analysisSummaryText(intelligence?.result);
 
   return <div className="lead-details-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="lead-details-panel" role="dialog" aria-modal="true" aria-labelledby="lead-details-title" ref={panelRef} onMouseDown={(event) => event.stopPropagation()}>
@@ -105,17 +130,18 @@ export default function LeadDetails({ leadId, onClose, onSaved }) {
         <p>{lead.email} · {lead.source}</p>
         <p>Lifecycle: {lead.status} · Processing: {lead.processing_status}</p>
         <div className="intelligence-box"><h3>Lead intelligence</h3>
-          {intelligence ? <><p>Priority: {intelligence.priority} · AI Score: {intelligence.lead_score}/100</p>{intelligence.result?.company?.summary && <p>{intelligence.result.company.summary}</p>}</> : <p>Not analyzed yet.</p>}
+          {intelligence ? <><p>Priority: {intelligence.priority} · AI Score: {intelligence.lead_score}/100</p>{summary !== null && <p>{summary}</p>}</> : <p>Not analyzed yet.</p>}
           <button type="button" onClick={runProcessing} disabled={saving || processing || lead.processing_status === "processing"}>
             {processing ? "Processing..." : intelligence ? "Re-analyze Lead" : "Process Lead"}
           </button>
           {lead.processing_status === "processing" && !processing && <p>Processing is in progress. <button type="button" onClick={() => setRevision((value) => value + 1)}>Refresh status</button></p>}
           <Link className="lead-intelligence-link" to={`/ai/${leadId}`}>View full intelligence →</Link>
         </div>
+        <RevenueDecisionHistory key={leadId} leadId={leadId} sourceRevision={revision} disabled={saving || processing} />
         <form className="lifecycle-editor" onSubmit={save}>
           <h3>Lifecycle</h3>
           <label htmlFor="lead-status">Status</label>
-          <select id="lead-status" value={status} onChange={(event) => setStatus(event.target.value)}>{statuses.map((item) => <option key={item}>{item}</option>)}</select>
+          <select id="lead-status" value={status} onChange={(event) => { const selected = statuses.find((item) => item === event.target.value); if (selected !== undefined) setStatus(selected); }}>{statuses.map((item) => <option key={item}>{item}</option>)}</select>
           <label htmlFor="lead-notes">Notes</label>
           <textarea id="lead-notes" maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} />
           <label htmlFor="last-contacted">Last contacted</label>

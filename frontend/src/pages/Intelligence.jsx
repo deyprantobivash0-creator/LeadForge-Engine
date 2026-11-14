@@ -4,6 +4,10 @@ import { ArrowLeft, ArrowRight, BrainCircuit, Clock3, Database, Sparkles } from 
 import { getAnalysisHistory, getLead, getLeads, processLead } from "../services/leadService";
 import { formatAnalysisDate, presentAnalysis } from "../utils/leadIntelligence";
 
+/**
+ * @typedef {Pick<import('../types/api').AnalysisHistory,'items'|'total'>} HistoryData
+ * @typedef {HistoryData & {leadId:string}} HistoryState
+ */
 const HISTORY_LIMIT = 8;
 const processingErrors = {
   provider_not_configured: "Analysis is not configured for this workspace.",
@@ -14,6 +18,12 @@ const processingErrors = {
   processing_failure: "Analysis could not be completed. Try again later.",
 };
 
+/** @param {string} message @returns {message is keyof typeof processingErrors} */
+function isProcessingErrorCode(message) {
+  return Object.hasOwn(processingErrors, message);
+}
+
+/** @param {{title:import('react').ReactNode,children:import('react').ReactNode,retry?:()=>void,error?:boolean}} props */
 function StateMessage({ title, children, retry, error = false }) {
   return <div className={`intelligence-state ${error ? "is-error" : ""}`} role={error ? "alert" : "status"}>
     <strong>{title}</strong><p>{children}</p>
@@ -21,10 +31,12 @@ function StateMessage({ title, children, retry, error = false }) {
   </div>;
 }
 
+/** @param {{children:import('react').ReactNode,tone?:string}} props */
 function Badge({ children, tone = "neutral" }) {
   return <span className={`lf-badge lf-badge-${tone}`}>{children}</span>;
 }
 
+/** @param {{analysis:import('../utils/leadIntelligence').PresentedAnalysis|null}} props */
 function Score({ analysis }) {
   return <section className="intelligence-card score-panel" aria-label="AI Score">
     <div className="section-kicker">AI SCORE</div>
@@ -38,6 +50,7 @@ function Score({ analysis }) {
   </section>;
 }
 
+/** @param {{dimension:import('../utils/leadIntelligence').PresentedDimension}} props */
 function Dimension({ dimension }) {
   return <article className="intelligence-card dimension-card">
     <div className="dimension-heading"><h3>{dimension.label}</h3><strong>{dimension.score === null ? "Unavailable" : `${dimension.score}/100`}</strong></div>
@@ -46,6 +59,7 @@ function Dimension({ dimension }) {
   </article>;
 }
 
+/** @param {{dimensions:import('../utils/leadIntelligence').PresentedDimension[]}} props */
 function Evidence({ dimensions }) {
   const entries = dimensions.flatMap((dimension) => dimension.evidence.map((item, index) => ({ ...item, dimension: dimension.label, key: `${dimension.key}-${index}` })));
   return <section className="intelligence-card evidence-section">
@@ -60,10 +74,11 @@ function Evidence({ dimensions }) {
   </section>;
 }
 
+/** @param {{data:HistoryData|null,loading:boolean,error:string,onRetry:()=>void,onMore:()=>void,currentId?:number}} props */
 function History({ data, loading, error, onRetry, onMore, currentId }) {
   return <section className="intelligence-card history-section">
     <div className="section-heading"><div><span className="section-kicker">RECORD</span><h2>Analysis history</h2></div><Clock3 size={20} aria-hidden="true" /></div>
-    {data?.items?.length > 0 && <ol className="history-list">{data.items.map((item) => <li key={item.id}>
+    {data && data.items?.length > 0 && <ol className="history-list">{data.items.map((item) => <li key={item.id}>
       <div><strong>{formatAnalysisDate(item.created_at)}</strong><span>{item.id === currentId ? "Current analysis" : "Earlier analysis"}</span></div>
       <div className="history-result"><strong>{item.lead_score}/100</strong><Badge tone={item.priority?.toLowerCase()}>{item.priority}</Badge></div>
     </li>)}</ol>}
@@ -75,7 +90,7 @@ function History({ data, loading, error, onRetry, onMore, currentId }) {
 }
 
 function LeadSelection() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(/** @type {import('../types/api').LeadPage|null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -93,16 +108,17 @@ function LeadSelection() {
       {loading && <p role="status" className="intelligence-muted">Loading leads...</p>}
       {!loading && error && <StateMessage title="Leads unavailable" retry={() => { setLoading(true); setRevision((value) => value + 1); }} error>{error}</StateMessage>}
       {!loading && !error && data?.items?.length === 0 && <p className="intelligence-muted">There are no leads in this workspace yet.</p>}
-      {!loading && !error && data?.items?.length > 0 && <ul className="selection-leads">{data.items.map((lead) => <li key={lead.id}><Link to={`/ai/${lead.id}`}><span><strong>{lead.company}</strong><small>{lead.email}</small></span><ArrowRight size={18} aria-hidden="true" /></Link></li>)}</ul>}
+      {!loading && !error && data && data.items?.length > 0 && <ul className="selection-leads">{data.items.map((lead) => <li key={lead.id}><Link to={`/ai/${lead.id}`}><span><strong>{lead.company}</strong><small>{lead.email}</small></span><ArrowRight size={18} aria-hidden="true" /></Link></li>)}</ul>}
     </section>
   </div>;
 }
 
+/** @param {{leadId:string}} props */
 function SelectedLead({ leadId }) {
-  const [lead, setLead] = useState(null);
+  const [lead, setLead] = useState(/** @type {import('../types/api').LeadDetail|null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [history, setHistory] = useState(null);
+  const [history, setHistory] = useState(/** @type {HistoryState|null} */ (null));
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
   const [offset, setOffset] = useState(0);
@@ -131,6 +147,7 @@ function SelectedLead({ leadId }) {
     return () => { active = false; };
   }, [leadId, offset, historyRevision]);
 
+  /** @returns {Promise<void>} */
   async function analyze() {
     if (processingRef.current) return;
     processingRef.current = true;
@@ -145,7 +162,9 @@ function SelectedLead({ leadId }) {
       setRevision((value) => value + 1);
       setHistoryRevision((value) => value + 1);
     } catch (failure) {
-      setProcessError(processingErrors[failure.message] || failure.message);
+      if (!(failure instanceof Error)) throw failure;
+      const message = failure.message;
+      setProcessError(isProcessingErrorCode(message) ? processingErrors[message] : message);
       // A failed attempt may update processing_status, but the prior analysis stays visible.
       getLead(leadId).then(setLead).catch(() => {});
     } finally {

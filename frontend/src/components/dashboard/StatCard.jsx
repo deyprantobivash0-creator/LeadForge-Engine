@@ -12,6 +12,7 @@ const icons = {
   score: TrendingUp,
 };
 
+/** @param {{label:import('react').ReactNode,value:import('react').ReactNode,description?:import('react').ReactNode,type?:keyof typeof icons}} props */
 function StatCard({
   label,
   value,

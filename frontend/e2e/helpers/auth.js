@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import { account } from '../fixtures/data.js';
 
+/** @param {import('@playwright/test').Page} page */
 export async function login(page) {
   await page.goto('/');
   await page.getByLabel('Email', { exact: true }).fill(account.email);
@@ -11,12 +12,14 @@ export async function login(page) {
   await expect(page.getByRole('heading', { name: 'Revenue Intelligence Dashboard' })).toBeVisible();
 }
 
+/** @typedef {{method?:string,headers?:Record<string,string>,body?:string}} BrowserApiOptions */
+/** @param {import('@playwright/test').Page} page @param {string} path @param {BrowserApiOptions} [options] */
 export async function api(page, path, options = {}) {
   return page.evaluate(async ({ path, options }) => {
     const csrf = document.cookie.split('; ').find(c => c.startsWith('leadforge_csrf='))?.split('=')[1];
     const org = Object.entries(localStorage).find(([key]) => key.startsWith('leadforge-workspace-'))?.[1];
     const response = await fetch(path, { credentials: 'include', ...options,
-      headers: { 'X-Organization-ID': org, 'X-CSRF-Token': csrf, ...options.headers } });
+      headers: { 'X-Organization-ID': `${org}`, 'X-CSRF-Token': `${csrf}`, ...options.headers } });
     return { status: response.status, body: await response.json() };
   }, { path, options });
 }

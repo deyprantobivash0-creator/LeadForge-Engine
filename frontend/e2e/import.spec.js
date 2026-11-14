@@ -11,7 +11,7 @@ test('CSV preview is nonmutating, partial confirm skips duplicate/invalid, XSS i
   await expect(page.getByRole('heading', { name: 'Row preview' })).toBeVisible();
   expect((await api(page, '/api/leads/')).body.total).toBe(before);
   await expect(page.getByText('<script>window.__xss=true</script>', { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  expect(await page.evaluate(() => '__xss' in window ? window.__xss : undefined)).toBeUndefined();
   await page.getByRole('button', { name: 'Import 1 lead', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Import complete' })).toBeVisible();
   expect((await api(page, '/api/leads/')).body.total).toBe(before + 1);

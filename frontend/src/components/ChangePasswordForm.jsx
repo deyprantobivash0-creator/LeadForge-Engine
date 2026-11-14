@@ -3,22 +3,30 @@ import api from "../services/api";
 
 const emptyPasswords = { current: "", next: "", confirm: "" };
 
+/**
+ * @typedef {keyof typeof emptyPasswords} PasswordField
+ * @typedef {Partial<Record<PasswordField|'form',string>>} PasswordErrors
+ */
+
 export default function ChangePasswordForm() {
   const [passwords, setPasswords] = useState(emptyPasswords);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {PasswordErrors} */ ({}));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
+  /** @param {PasswordField} field @param {string} value */
   function edit(field, value) {
     setPasswords((values) => ({ ...values, [field]: value }));
     setErrors({});
     setMessage("");
   }
 
+  /** @param {import('react').FormEvent<HTMLFormElement>} event @returns {Promise<void>} */
   async function submit(event) {
     event.preventDefault();
     if (busyRef.current) return;
+    /** @type {PasswordErrors} */
     const invalid = {};
     if (!passwords.current) invalid.current = "Enter your current password.";
     const length = Array.from(passwords.next).length;
@@ -37,8 +45,12 @@ export default function ChangePasswordForm() {
       setPasswords(emptyPasswords);
       setMessage("Password changed successfully.");
     } catch (failure) {
-      if (failure.message === "Current password is incorrect.") setErrors({ current: failure.message });
-      else setErrors({ form: failure.message });
+      // Keep the existing failure for absent errors instead of inventing a message.
+      if (failure === null || failure === undefined) throw new TypeError(`Cannot read properties of ${failure} (reading 'message')`);
+      const failureMessage = (typeof failure === "object" || typeof failure === "function") && "message" in failure ? failure.message : undefined;
+      if (failureMessage !== undefined && typeof failureMessage !== "string") throw failure;
+      if (failureMessage === "Current password is incorrect.") setErrors({ current: failureMessage });
+      else setErrors({ form: failureMessage });
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -48,7 +60,7 @@ export default function ChangePasswordForm() {
   return <form className="settings-password-form" onSubmit={submit} noValidate aria-labelledby="change-password-title" aria-busy={busy}>
     <h3 id="change-password-title">Change Password</h3>
     <p id="password-policy">Use 15 to 1024 characters. Other active sessions will be signed out; this session stays active.</p>
-    {[["current", "Current password", "current-password"], ["next", "New password", "new-password"], ["confirm", "Confirm new password", "new-password"]].map(([field, label, autocomplete]) =>
+    {(/** @type {[PasswordField,string,string][]} */ ([["current", "Current password", "current-password"], ["next", "New password", "new-password"], ["confirm", "Confirm new password", "new-password"]])).map(([field, label, autocomplete]) =>
       <div className="settings-password-field" key={field}>
         <label htmlFor={`password-${field}`}>{label}</label>
         <input id={`password-${field}`} name={field === "current" ? "current_password" : field === "next" ? "new_password" : "confirm_password"}

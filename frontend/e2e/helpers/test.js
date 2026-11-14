@@ -3,14 +3,19 @@ import { randomUUID } from 'node:crypto';
 
 export const test = base.extend({
   page: async ({ page }, providePage, testInfo) => {
+    /** @type {string[]} */
     const errors = [];
+    /** @param {{path:string,status:number}} failure */
     const intentional = ({ path, status }) =>
       (status === 401 && ['/api/auth/me', '/api/auth/login'].includes(path)) ||
       (status === 403 && ['/api/auth/logout', '/api/leads/'].includes(path)) ||
       (status === 404 && /^\/api\/leads\/\d+(?:\/analyses)?$/.test(path)) ||
       (status === 422 && path === '/api/imports/leads/preview');
+    /** @type {{path:string,status:number}[]} */
     const httpFailures = [];
-    await page.context().route('**/*', route => route.request().url().startsWith('http://127.0.0.1:8080/')
+    const origin = new URL(testInfo.project.use.baseURL || 'http://127.0.0.1:8080').origin;
+    if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin)) throw new Error('Browser QA requires a loopback HTTP origin.');
+    await page.context().route('**/*', route => route.request().url().startsWith(`${origin}/`)
       ? route.continue({ headers: { ...route.request().headers(), 'X-Request-ID': `e2e-browser-${randomUUID()}` } }) : route.abort('blockedbyclient'));
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => {
@@ -24,7 +29,8 @@ export const test = base.extend({
     });
     await providePage(page);
     await testInfo.attach('browser-errors', { body: JSON.stringify({ errors, httpFailures }), contentType: 'application/json' });
-    const permitted = (type, value) => testInfo.annotations.some(item => item.type === type && value.includes(item.description));
+    /** @param {string} type @param {string} value */
+    const permitted = (type, value) => testInfo.annotations.some(item => item.type === type && value.includes(`${item.description}`));
     expect(errors.filter(error => !permitted('expected-browser-error', error))).toEqual([]);
     expect(httpFailures.filter(f => !intentional(f) && !permitted('expected-http', `${f.status} ${f.path}`))).toEqual([]);
   },

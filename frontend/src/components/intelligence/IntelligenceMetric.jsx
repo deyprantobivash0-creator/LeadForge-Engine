@@ -1,3 +1,4 @@
+/** @param {{label:import('react').ReactNode,value?:number,tone?:string}} props */
 function IntelligenceMetric({
   label,
   value = 0,

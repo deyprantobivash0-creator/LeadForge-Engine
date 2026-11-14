@@ -18,7 +18,7 @@ test('invalid login, explicit workspace, session persistence and revoked logout'
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings & Integrations' })).toBeVisible();
   const cookies = await page.context().cookies();
-  expect(cookies.find(c => c.name === 'leadforge_session').httpOnly).toBe(true);
+  expect(cookies.find(c => c.name === 'leadforge_session')?.httpOnly).toBe(true);
   const logout = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/logout' && response.request().method() === 'POST');
   await page.locator('#settings-security').getByRole('button', { name: 'Sign out', exact: true }).click();
   expect((await logout).status()).toBe(200);

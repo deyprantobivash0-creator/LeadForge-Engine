@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import api, { configureApi } from "../services/api";
+import api, { ApiError, configureApi } from "../services/api";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext(/** @type {import('../types/api').AuthContextValue|null} */ (null));
+/** @param {number} userId */
 const preferenceKey = (userId) => `leadforge-workspace-${userId}`;
 
+/** @param {{children:import('react').ReactNode}} props */
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [organizations, setOrganizations] = useState([]);
-  const [organization, setOrganization] = useState(null);
+  const [user, setUser] = useState(/** @type {import('../types/api').User|null} */ (null));
+  const [organizations, setOrganizations] = useState(/** @type {import('../types/api').Organization[]} */ ([]));
+  const [organization, setOrganization] = useState(/** @type {import('../types/api').Organization|null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [accessMessage, setAccessMessage] = useState("");
@@ -19,7 +21,9 @@ export function AuthProvider({ children }) {
     setAccessMessage("");
   }
 
+  /** @param {import('../types/api').User} currentUser @param {number|null} [currentId] */
   async function loadOrganizations(currentUser, currentId = null) {
+    /** @type {import('../types/api').Organization[]} */
     const available = await api.get("/api/organizations");
     setOrganizations(available);
     const preferred = currentId ?? localStorage.getItem(preferenceKey(currentUser.id));
@@ -33,12 +37,14 @@ export function AuthProvider({ children }) {
     setLoading(true);
     setError("");
     try {
+      /** @type {import('../types/api').User} */
       const currentUser = await api.get("/api/auth/me", { handleAuth: false });
       setUser(currentUser);
       await loadOrganizations(currentUser);
     } catch (failure) {
-      if (failure.status === 401) clearAuth();
-      else setError(failure.message);
+      if (failure instanceof ApiError && failure.status === 401) clearAuth();
+      else if (failure instanceof Error) setError(failure.message);
+      else throw failure;
     } finally {
       setLoading(false);
     }
@@ -46,7 +52,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { restoreSession(); }, []);
 
+  /** @param {string} email @param {string} password */
   async function login(email, password) {
+    /** @type {import('../types/api').LoginResponse} */
     const result = await api.post("/api/auth/login", { email, password }, { handleAuth: false });
     setUser(result.user);
     setError("");
@@ -54,7 +62,8 @@ export function AuthProvider({ children }) {
     try {
       await loadOrganizations(result.user);
     } catch (failure) {
-      setError(failure.message);
+      if (failure instanceof Error) setError(failure.message);
+      else throw failure;
     }
   }
 
@@ -62,15 +71,16 @@ export function AuthProvider({ children }) {
     try {
       await api.post("/api/auth/logout", undefined, { handleAuth: false });
     } catch (failure) {
-      if (failure.status !== 401) throw failure;
+      if (!(failure instanceof ApiError && failure.status === 401)) throw failure;
     }
     if (user) localStorage.removeItem(preferenceKey(user.id));
     clearAuth();
   }
 
+  /** @param {import('../types/api').ID} id */
   function selectOrganization(id) {
     const selected = organizations.find((item) => String(item.id) === String(id));
-    if (!selected) return;
+    if (!selected || !user) return;
     setOrganization(selected);
     setAccessMessage("");
     localStorage.setItem(preferenceKey(user.id), String(selected.id));
@@ -82,7 +92,9 @@ export function AuthProvider({ children }) {
       const stillAvailable = await loadOrganizations(user, organization?.id);
       setAccessMessage(stillAvailable ? "Access denied for this action." : "Workspace access changed. Choose an available workspace.");
     } catch (failure) {
-      if (failure.status !== 401) setError(failure.message);
+      if (failure instanceof ApiError && failure.status === 401) return;
+      if (failure instanceof Error) setError(failure.message);
+      else throw failure;
     }
   }
 

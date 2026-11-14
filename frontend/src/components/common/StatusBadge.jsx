@@ -1,3 +1,4 @@
+/** @param {{type?:string,children?:import('react').ReactNode}} props */
 export default function StatusBadge({
   type = "purple",
   children,

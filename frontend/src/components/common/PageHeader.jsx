@@ -1,3 +1,4 @@
+/** @param {{title:import('react').ReactNode,subtitle?:import('react').ReactNode,action?:import('react').ReactNode}} props */
 export default function PageHeader({
   title,
   subtitle,

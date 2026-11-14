@@ -1,5 +1,6 @@
 import LeadRow from "./LeadRow";
 
+/** @param {{leads:import('./LeadRow').LeadRowData[],onSelectLead?:import('./LeadRow').LeadRowProps['onSelect']}} props */
 function LeadTable({ leads, onSelectLead }) {
   return (
     <div className="lead-table-card">

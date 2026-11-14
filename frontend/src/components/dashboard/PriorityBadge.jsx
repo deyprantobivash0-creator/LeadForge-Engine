@@ -1,3 +1,4 @@
+/** @param {{priority?:string|null}} props */
 function PriorityBadge({ priority }) {
   const normalized =
     String(priority || "Unknown").toLowerCase();

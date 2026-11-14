@@ -7,8 +7,9 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(/** @type {string|undefined} */ (""));
 
+  /** @param {import('react').FormEvent<HTMLFormElement>} event @returns {Promise<void>} */
   async function submit(event) {
     event.preventDefault();
     if (busyRef.current) return;
@@ -18,10 +19,18 @@ export default function Login() {
     try {
       await login(email, password);
     } catch (error) {
-      if (error.status === 401) setMessage("Invalid email or password.");
-      else if (error.status === 429) setMessage("Too many attempts. Wait a minute and try again.");
-      else if (error.status === 422) setMessage("Enter a valid email and password.");
-      else setMessage(error.message);
+      // Preserve absent-error failures and existing status-message precedence.
+      if (error === null || error === undefined) throw new TypeError(`Cannot read properties of ${error} (reading 'status')`);
+      const failure = typeof error === "object" || typeof error === "function" ? error : undefined;
+      const status = failure && "status" in failure ? failure.status : undefined;
+      if (status === 401) setMessage("Invalid email or password.");
+      else if (status === 429) setMessage("Too many attempts. Wait a minute and try again.");
+      else if (status === 422) setMessage("Enter a valid email and password.");
+      else {
+        const failureMessage = failure && "message" in failure ? failure.message : undefined;
+        if (failureMessage !== undefined && typeof failureMessage !== "string") throw error;
+        setMessage(failureMessage);
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);

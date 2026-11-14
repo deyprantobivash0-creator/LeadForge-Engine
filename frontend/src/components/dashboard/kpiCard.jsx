@@ -1,5 +1,6 @@
-import PremiumCard from "../ui/PremiumCard";
+import PremiumCard from "../ui/premiumcard";
 
+/** @param {{title:import('react').ReactNode,value:import('react').ReactNode,icon?:import('react').ReactNode,color?:string}} props */
 export default function KpiCard({
 
 title,

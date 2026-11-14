@@ -1,3 +1,4 @@
+/** @param {{children?:import('react').ReactNode,className?:string}} props */
 export default function GlassCard({
   children,
   className = "",

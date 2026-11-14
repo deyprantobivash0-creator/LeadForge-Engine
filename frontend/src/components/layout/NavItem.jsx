@@ -1,3 +1,11 @@
+/**
+ * @param {{
+ *   icon: import('react').ReactNode,
+ *   label: string,
+ *   active?: boolean,
+ *   onClick?: (event: import('react').MouseEvent<HTMLButtonElement>) => void | Promise<void>
+ * }} props
+ */
 export default function NavItem({
   icon,
   label,

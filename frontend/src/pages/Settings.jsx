@@ -5,6 +5,7 @@ import { getSettingsOverview } from "../services/settingsService";
 import ChangePasswordForm from "../components/ChangePasswordForm";
 import "../styles/settings-workspace.css";
 
+/** @type {Record<import('../types/api').SettingsOverview['ai']['status'],string>} */
 const statusLabel = {
   development_only: "Development only",
   configuration_ready: "Configuration present",
@@ -12,13 +13,15 @@ const statusLabel = {
   not_available: "Not available",
 };
 
+/** @typedef {{name:string,available:boolean,description:string} & ({to:string,action:string}|{to?:undefined,action?:undefined})} CapabilityProps */
+/** @param {CapabilityProps} props */
 function Capability({ name, available, description, to, action }) {
   return <div className="settings-capability"><div><h3>{name}</h3><p>{description}</p></div><div><span className={`settings-state ${available ? "is-available" : ""}`}>{available ? "Available" : "Not available"}</span>{to && <Link to={to}>{action}</Link>}</div></div>;
 }
 
 export default function Settings() {
   const { organization, logout } = useAuth();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(/** @type {import('../types/api').SettingsOverview|null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [logoutError, setLogoutError] = useState("");
@@ -37,7 +40,10 @@ export default function Settings() {
     setSigningOut(true);
     setLogoutError("");
     try { await logout(); }
-    catch (failure) { setLogoutError(failure.message); setSigningOut(false); }
+    catch (failure) {
+      if (!(failure instanceof Error)) throw failure;
+      setLogoutError(failure.message); setSigningOut(false);
+    }
   }
 
   return <div className="settings-page">

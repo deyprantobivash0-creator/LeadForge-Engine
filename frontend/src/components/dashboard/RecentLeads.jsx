@@ -1,5 +1,11 @@
 import PriorityBadge from "./PriorityBadge";
 
+/**
+ * Only the displayed fields are required by this fallback-aware legacy view.
+ * Both Lead rows and historical analysis projections can supply these fields.
+ * @typedef {Partial<Pick<import('../../types/api').Lead,'id'|'company'|'lead_score'|'status'>> & {priority?:import('../../types/api').AnalysisActivity['priority']|null}} RecentLead
+ */
+/** @param {{leads?:RecentLead[]}} props */
 function RecentLeads({ leads = [] }) {
   return (
     <div className="recent-leads-card">
@@ -31,7 +37,7 @@ function RecentLeads({ leads = [] }) {
           <tbody>
             {leads.length === 0 ? (
               <tr>
-                <td colSpan="4" className="empty-state">
+                <td colSpan={4} className="empty-state">
                   No recent analyses available.
                 </td>
               </tr>

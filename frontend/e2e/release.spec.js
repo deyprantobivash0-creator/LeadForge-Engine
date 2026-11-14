@@ -2,11 +2,21 @@ import { test, expect } from './helpers/test.js';
 import { login, api } from './helpers/auth.js';
 import { account } from './fixtures/data.js';
 
+/** @param {import('@playwright/test').Page} page @param {string} label */
 async function choose(page, label) {
   await page.getByRole('combobox', { name: 'Workspace', exact: true }).selectOption({ label });
 }
+/** @param {import('@playwright/test').Page} page @param {string} text @param {string} [name] */
 async function upload(page, text, name = 'release.csv') {
   await page.getByLabel('Choose CSV file').setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(text) });
+}
+
+/**
+ * @param {import('../src/types/api').LeadListItem} item
+ * @returns {item is import('../src/types/api').LeadListItem & {current_analysis:NonNullable<import('../src/types/api').LeadListItem['current_analysis']>}}
+ */
+function hasCurrentAnalysis(item) {
+  return Boolean(item.current_analysis);
 }
 
 test('empty workspace, validation, duplicate feedback, bounded pagination and responsive release surfaces', async ({ page }) => {
@@ -27,7 +37,7 @@ test('empty workspace, validation, duplicate feedback, bounded pagination and re
   await page.getByLabel('Company', { exact: true }).fill(company);
   let createRequests = 0;
   page.on('request', request => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/leads/') createRequests++; });
-  await page.locator('.lead-dialog-form').evaluate(form => { form.requestSubmit(); form.requestSubmit(); });
+  await page.locator('.lead-dialog-form').evaluate(form => { if (!(form instanceof HTMLFormElement)) throw new Error('Expected the lead dialog form.'); form.requestSubmit(); form.requestSubmit(); });
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '1 total lead', exact: true })).toBeVisible();
   expect(createRequests).toBe(1);
@@ -53,9 +63,10 @@ test('empty workspace, validation, duplicate feedback, bounded pagination and re
   }
   await choose(page, 'E2E Populated');
   await expect(page.getByRole('heading', { name: '6 total leads', exact: true })).toBeVisible();
+  /** @type {import('../src/types/api').LeadListItem[]} */
   const populated = (await api(page, '/api/leads/')).body.items;
   expect(new Set(populated.map(item => item.status)).size).toBe(6);
-  expect(populated.filter(item => item.current_analysis).map(item => item.current_analysis.priority).sort()).toEqual(['Cold', 'Hot', 'Warm']);
+  expect(populated.filter(hasCurrentAnalysis).map(item => item.current_analysis.priority).sort()).toEqual(['Cold', 'Hot', 'Warm']);
   const current = (await api(page, '/api/dashboard/v2/overview')).body;
   expect(current.pipeline.total_leads).toBe(6); expect(current.pipeline.analyzed_leads).toBe(3);
   await page.getByRole('combobox', { name: 'Priority', exact: true }).selectOption('Warm');
@@ -71,7 +82,7 @@ test('empty workspace, validation, duplicate feedback, bounded pagination and re
   await expect(page.getByText('Page 1 of 50', { exact: true })).toBeVisible();
   await page.getByLabel('Search leads', { exact: true }).fill('LongCompany');
   await expect(page.getByRole('heading', { name: '1 matching lead', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => window.__releaseXss)).toBeUndefined();
+  expect(await page.evaluate(() => '__releaseXss' in window ? window.__releaseXss : undefined)).toBeUndefined();
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const path of ['/leads', '/imports', '/ai', '/reports', '/settings', '/']) {

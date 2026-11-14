@@ -1,3 +1,4 @@
+/** @param {{children?:import('react').ReactNode,onClick?:import('react').MouseEventHandler<HTMLButtonElement>,variant?:'primary'|'secondary'}} props */
 export default function PremiumButton({
 
 children,

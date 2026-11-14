@@ -1,11 +1,15 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 const CSRF_COOKIE_NAME = import.meta.env.VITE_CSRF_COOKIE_NAME || "leadforge_csrf";
 const CSRF_HEADER_NAME = import.meta.env.VITE_CSRF_HEADER_NAME || "X-CSRF-Token";
+/** @type {number|null} */
 let selectedOrganizationId = null;
+/** @type {()=>void} */
 let onUnauthorized = () => {};
+/** @type {()=>void} */
 let onForbidden = () => {};
 
 export class ApiError extends Error {
+  /** @param {number} status @param {string} message @param {unknown} [details] @param {string|null} [requestId] */
   constructor(status, message, details = null, requestId = null) {
     super(message);
     this.name = "ApiError";
@@ -15,18 +19,21 @@ export class ApiError extends Error {
   }
 }
 
+/** @param {import('../types/api').ApiConfiguration} options */
 export function configureApi({ organizationId, unauthorized, forbidden }) {
   selectedOrganizationId = organizationId;
   onUnauthorized = unauthorized;
   onForbidden = forbidden;
 }
 
+/** @param {string} name */
 function readCookie(name) {
   const prefix = `${name}=`;
   const part = document.cookie.split("; ").find((cookie) => cookie.startsWith(prefix));
   return part ? decodeURIComponent(part.slice(prefix.length)) : null;
 }
 
+/** @param {string} endpoint @param {import('../types/api').TransportOptions} [options] */
 async function request(endpoint, { method = "GET", data, params, organization = false, handleAuth = true, responseType = "json", headers: extraHeaders = {} } = {}) {
   if (organization && !selectedOrganizationId) {
     throw new ApiError(400, "Select a workspace to continue.");
@@ -64,6 +71,7 @@ async function request(endpoint, { method = "GET", data, params, organization = 
   if (!response.ok) {
     if (handleAuth && response.status === 401) onUnauthorized();
     if (handleAuth && organization && requestOrganizationId === selectedOrganizationId && response.status === 403) onForbidden();
+    /** @type {Record<number,string>} */
     const defaults = { 401: "Sign in again to continue.", 403: "You do not have access to this action in the selected workspace.", 404: "This record is unavailable in the selected workspace.", 409: "This action conflicts with the current record. Refresh and try again.", 422: "Check the highlighted fields and try again.", 429: "Too many requests. Wait a minute and try again." };
     const message = response.status >= 500 ? "The service could not complete this request. Try again shortly." : response.status === 422 && (!body?.error?.message || body.error.message === "Request validation failed.") && typeof body?.detail !== "string" ? defaults[422] : body?.error?.message || (typeof body?.detail === "string" ? body.detail : null) || defaults[response.status] || "The request could not be completed. Try again.";
     throw new ApiError(response.status, message, body?.error?.details || body?.detail || null, response.headers.get("X-Request-ID"));
@@ -71,6 +79,7 @@ async function request(endpoint, { method = "GET", data, params, organization = 
   return body;
 }
 
+/** @type {import('../types/api').ApiClient} */
 export const api = {
   get: (endpoint, options) => request(endpoint, { ...options, method: "GET" }),
   post: (endpoint, data, options) => request(endpoint, { ...options, method: "POST", data }),
