@@ -18,4 +18,7 @@ __all__ = [
     "AuthSession",
     "AuditEvent",
     "DecisionLedger",
+    "DecisionOutcome",
 ]
+
+from backend.models.decision_outcome import DecisionOutcome

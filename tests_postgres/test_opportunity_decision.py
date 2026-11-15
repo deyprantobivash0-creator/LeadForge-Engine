@@ -34,7 +34,7 @@ def decision_database(pg_database):
             cwd=Path(__file__).resolve().parents[1], env=env, capture_output=True, timeout=60)
         assert result.returncode == 0, "Owned P2-A disposable migration failed; private output withheld"
         with psycopg.connect(**{**connect, "dbname": name}) as db:
-            assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [("31e5e19bd71f",)]
+            assert db.execute("SELECT version_num FROM alembic_version").fetchall() == [("72b6a8d9e014",)]
         yield private
     finally:
         with psycopg.connect(**connect) as admin:

@@ -41,6 +41,8 @@ from backend.schemas.decision_ledger import DecisionLedgerHistory, DecisionLedge
 from backend.services.decision_ledger_service import DecisionLedgerService
 from backend.schemas.decision_change import DecisionChangeResponse
 from backend.services.decision_comparison_service import DecisionComparisonService
+from backend.schemas.decision_outcome import OutcomeInput, OutcomeRecord, OutcomeHistory
+from backend.services.decision_outcome_service import DecisionOutcomeService, OutcomeTimeError
 from backend.services.lead_processing_service import (
     LeadProcessingService, LeadNotFound, ProcessingConflict, ProcessingFailure,
 )
@@ -300,6 +302,35 @@ def get_recorded_opportunity_decision(
     context: AuthorizedOrganizationContext = Depends(get_current_organization),
 ):
     result = DecisionLedgerService(db).get(lead_id, context.organization.id, decision_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return result
+
+
+@router.get("/{lead_id}/opportunity-decisions/{decision_id}/outcomes", response_model=OutcomeHistory)
+def decision_outcomes(
+    lead_id: LeadID, decision_id: UUID4,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100000000),
+    db: Session = Depends(get_db),
+    context: AuthorizedOrganizationContext = Depends(get_current_organization),
+):
+    result = DecisionOutcomeService(db).history(lead_id, decision_id, context.organization.id, limit, offset)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return result
+
+
+@router.post("/{lead_id}/opportunity-decisions/{decision_id}/outcomes", response_model=OutcomeRecord, status_code=201)
+def record_decision_outcome(
+    lead_id: LeadID, decision_id: UUID4, payload: OutcomeInput,
+    db: Session = Depends(get_db),
+    principal: ExecutionPrincipal = Depends(require_user_principal),
+):
+    try:
+        result = DecisionOutcomeService(db).record(principal, lead_id, decision_id, principal.organization_id, payload)
+    except OutcomeTimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     if result is None:
         raise HTTPException(status_code=404, detail="Decision not found")
     return result

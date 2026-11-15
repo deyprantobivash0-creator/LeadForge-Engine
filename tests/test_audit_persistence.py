@@ -323,7 +323,7 @@ def test_additive_upgrade_populated_downgrade_and_reupgrade(tmp_path, monkeypatc
 
 def test_generated_graph_and_postgres_upgrade_sql_without_database():
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == ["31e5e19bd71f"]
+    assert scripts.get_heads() == ["72b6a8d9e014"]
     revision = scripts.get_revision(HEAD)
     assert revision.down_revision == PREVIOUS
     output = StringIO()

@@ -40,6 +40,7 @@ class DecisionLedger(Base):
                         "AND human_review_required IN (TRUE,FALSE)", name="decision_domains"),
         CheckConstraint("length(CAST(reasons AS TEXT)) <= 65536 AND length(CAST(evidence AS TEXT)) <= 131072 "
                         "AND length(CAST(risk_flags AS TEXT)) <= 1024 AND length(CAST(missing_signals AS TEXT)) <= 1024", name="json_bounds"),
+        Index("ux_decision_ledger_scope_id", "organization_id", "lead_id", "id", unique=True),
         Index("ix_decision_ledger_org_lead_time", "organization_id", "lead_id", "recorded_at", "id"),
     )
 

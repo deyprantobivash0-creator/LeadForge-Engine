@@ -29,3 +29,8 @@
 .decision-loading { min-height: 180px; display: flex; align-items: center; justify-content: center; color: var(--lf-secondary, #b6c6d8); }
 .decision-empty { padding: 16px 0; }
 @media (max-width: 420px) { .decision-card { padding: 12px; }.decision-actions { flex-direction: column; }.decision-actions button { width: 100%; }.decision-metrics dd { font-size: 22px; } }
+
+.decision-outcomes form { display: grid; gap: .75rem; margin-top: 1rem; }
+.decision-outcomes label { display: grid; gap: .35rem; }
+.decision-outcomes input, .decision-outcomes select, .decision-outcomes textarea { max-width: 100%; min-width: 0; color: inherit; background: #111827; border: 1px solid #475569; padding: .5rem; border-radius: .4rem; }
+.decision-outcomes ol { padding-left: 1.25rem; }

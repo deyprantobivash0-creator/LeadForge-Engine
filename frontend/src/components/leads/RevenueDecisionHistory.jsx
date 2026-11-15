@@ -1,3 +1,4 @@
+import DecisionOutcomes from "./DecisionOutcomes";
 import { useEffect, useRef, useState } from "react";
 import { getDecisionChange, getDecisionHistory, recordCurrentDecision } from "../../services/revenueDecisionService";
 import "../../styles/revenue-decision.css";
@@ -183,7 +184,7 @@ export default function RevenueDecisionHistory({ leadId, sourceRevision = 0, dis
           <p><strong>Opportunity {item.opportunity_score}/100</strong> · {actions[item.recommended_action]}</p>
           <p>Coverage confidence {percent(item.confidence)} · {review(item.human_review_required)}</p>
           <p className="decision-context">Policy: {item.decision_version}</p>
-          <details><summary>Inspect recorded decision</summary><Metrics value={item} /><p>Decision generated: <time dateTime={item.decision_generated_at}>{timestamp(item.decision_generated_at)}</time></p><p>Decision recorded: <time dateTime={item.recorded_at}>{timestamp(item.recorded_at)}</time></p><DecisionDetails value={item} /></details>
+          <details><summary>Inspect recorded decision</summary><Metrics value={item} /><p>Decision generated: <time dateTime={item.decision_generated_at}>{timestamp(item.decision_generated_at)}</time></p><p>Decision recorded: <time dateTime={item.recorded_at}>{timestamp(item.recorded_at)}</time></p><DecisionDetails value={item} /><DecisionOutcomes leadId={leadId} decision={item} disabled={disabled} /></details>
         </li>)}</ol>
         {history && <p className="decision-context">Showing {history.items.length} of {history.total} recorded decisions.</p>}
         {moreError && <p role="alert">More history could not be loaded. Try Load more again.</p>}

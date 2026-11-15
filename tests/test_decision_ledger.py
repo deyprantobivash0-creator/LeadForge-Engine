@@ -19,7 +19,7 @@ from tests.test_opportunity_decision import lead_case, seed_decision, snapshot
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HEAD = "31e5e19bd71f"
+HEAD = "72b6a8d9e014"
 PUBLISHED = "5d59e6268f43"
 
 
@@ -402,7 +402,8 @@ def test_migration_populated_upgrade_downgrade_and_no_backfill(tmp_path, monkeyp
     try:
         after = migration_rows(engine)
         assert after["decision_ledger"] == []
-        assert {k: v for k, v in after.items() if k != "decision_ledger"} == before
+        assert after["decision_outcomes"] == []
+        assert {k: v for k, v in after.items() if k not in {"decision_ledger", "decision_outcomes"}} == before
         with Session(engine) as db: record(db, case)
     finally:
         engine.dispose()

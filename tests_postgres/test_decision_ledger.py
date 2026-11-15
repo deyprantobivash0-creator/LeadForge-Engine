@@ -163,7 +163,8 @@ def test_populated_postgres_migration_roundtrip_no_backfill(pg_database):
         engine = create_engine(url)
         after = contracts.migration_rows(engine)
         assert after["decision_ledger"] == []
-        assert {k: v for k, v in after.items() if k != "decision_ledger"} == before
+        assert after["decision_outcomes"] == []
+        assert {k: v for k, v in after.items() if k not in {"decision_ledger", "decision_outcomes"}} == before
         with Session(engine) as db:
             dto = contracts.record(db, case)
             assert contracts.service(db).get(dto.lead_id, dto.organization_id, dto.id) == dto
