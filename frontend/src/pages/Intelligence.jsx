@@ -1,3 +1,4 @@
+import DecisionEvaluation from "../components/intelligence/DecisionEvaluation";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, BrainCircuit, Clock3, Database, Sparkles } from "lucide-react";
@@ -102,6 +103,7 @@ function LeadSelection() {
     return () => { active = false; };
   }, [revision]);
   return <div className="intelligence-page">
+    <DecisionEvaluation />
     <header className="intelligence-page-header"><span className="section-kicker">LEADFORGE / INTELLIGENCE</span><h1>Lead Intelligence Center</h1><p>Explore the latest saved assessment for a lead in this workspace.</p></header>
     <section className="intelligence-card selection-card"><span className="selection-icon"><BrainCircuit size={28} aria-hidden="true" /></span><h2>Select a lead to view AI intelligence.</h2><p>Open a recent lead below or browse the Lead workspace.</p><Link className="lf-button lf-button-secondary" to="/leads">Browse all leads <ArrowRight size={16} aria-hidden="true" /></Link></section>
     <section className="intelligence-card selection-list"><div className="section-heading"><div><span className="section-kicker">THIS WORKSPACE</span><h2>Recent leads</h2></div></div>
